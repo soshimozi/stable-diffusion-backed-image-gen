@@ -15,8 +15,8 @@ This project implements a real-time AI image generation pipeline using:
 ```
 ├── websocket_server.py      # FastAPI server for enqueue, push, and WebSocket
 ├── modal_worker.py          # Modal worker that polls SQS and triggers image gen
-├── fly.toml                 # (Assumed) Fly.io config file for deploying FastAPI
-├── Dockerfile               # (Assumed) Dockerfile for FastAPI app
+├── fly.toml                 # Fly.io config file for deploying FastAPI
+├── Dockerfile               # Dockerfile for FastAPI app
 ```
 
 ---
