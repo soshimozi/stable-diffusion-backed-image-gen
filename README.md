@@ -18,8 +18,6 @@ This project implements a real-time AI image generation pipeline using:
                                 ↳ generates image
 ```
 
----
-
 ## Deployment
 
 ### 1. Deploy Modal Worker
