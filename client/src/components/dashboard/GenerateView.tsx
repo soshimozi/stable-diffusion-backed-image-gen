@@ -1,6 +1,6 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { Box, Button, IconButton, Modal, styled, TextField, Typography } from "@mui/material";
-import { useState } from "react";
+import { Box, Button, IconButton, Modal, styled, TextField, Tooltip, Typography } from "@mui/material";
+import { useEffect, useState } from "react";
 import { useTypedSelector } from "../../store/hooks";
 import type { Thumbnail } from "../../types/Thumbnail";
 import CloseIcon from "@mui/icons-material/Close";
@@ -15,6 +15,8 @@ import MuiAccordionSummary, {
 import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
 import { ThumbnailComponent } from "../ThumbnailComponent";
 import { type ImageSettings } from "../../types/Settings";
+import { ImageService, type ImageGenerationOptions } from "../../services/ImageService";
+import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
 
 type GenerateViewState = {
   prompt: string;
@@ -49,14 +51,16 @@ const AccordionSummary = styled((props: AccordionSummaryProps) => (
 
 const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
   padding: theme.spacing(2),
-  borderTop: '1px solid rgba(0, 0, 0, .125)',
+  marginTop: theme.spacing(-2)
 }));
 
 const DEFAULT_PROMPT = "A racoon in a priests robe.";
 
+const imageService = new ImageService();
 export const GenerateView : React.FC = () => {
 
   const selectedModel = useTypedSelector((state) => state.model.selectedModel);
+  
 
   const DEFAULT_SETTINGS:ImageSettings = {
     height: 1024,
@@ -72,10 +76,59 @@ export const GenerateView : React.FC = () => {
   
   const location = useLocation();
   const defaultPrompt = (location.state as GenerateViewState)?.prompt || DEFAULT_PROMPT; // Accessing state data
-  const [elapsedTime, setElapsedTime] = useState(0);
   const [prompt, setPrompt] = useState(defaultPrompt);
-  const [expanded, setExpanded] = useState<string | false>(false);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_SETTINGS);
+  const [callId, setCallId] = useState<string | null>(null);
+  const [token, setToken] = useState<string | null>(null);
+  const [lastThumbnail, setLastThumbnail] = useState<Thumbnail | null>(null);
+  
+
+  useEffect(() => {
+    if (!callId || !token) return;
+
+    const pollInterval = setInterval(async () => {
+      try {
+        console.log('checking result');
+
+        const response = await fetch(
+          `${import.meta.env.VITE_BASE_URL}result/${callId}`, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            }
+          }          
+        );
+
+        if (response.status === 202) {
+          console.log('still working');
+          return;
+        }
+
+        if (response.ok) {
+          const blob = await response.blob();
+
+          console.log('blob: ', blob)
+
+          const url = URL.createObjectURL(blob);
+
+          if(lastThumbnail) {
+            updateThumbnail({ ...lastThumbnail, url, loading: false});          
+          }
+
+          clearInterval(pollInterval);
+          setCallId(null);
+        } else {
+          throw new Error("Failed to get results");
+        }
+      } catch (error) {
+        console.error("Error polling results:", error);
+        clearInterval(pollInterval);
+        setCallId(null);
+      }
+    }, 1000);
+
+    return () => clearInterval(pollInterval);
+  }, [callId, token]);  
 
   const getAccessToken = async (): Promise<string | null> => {
     try {
@@ -87,6 +140,8 @@ export const GenerateView : React.FC = () => {
         },
       });
 
+      setToken(accessToken);
+
       return accessToken;
     }
     catch(ex) 
@@ -96,18 +151,19 @@ export const GenerateView : React.FC = () => {
     }
   }
 
-  const generate = async () => {
+  const updateThumbnail = (th: Thumbnail) => {
 
-    setLoading(true);
-    const start = Date.now();
+      setThumbnails((prev) => {
+        if (prev.length === 0) return prev; // no-op if empty
 
-    setElapsedTime(0);
+        const updated = [...prev];
+        updated[prev.length - 1] = th;
+        return updated;      
+      });
 
-    const timer = setInterval(() => {
-      setElapsedTime((Date.now() - start) / 1000);
-    }, 100);
+  }
 
-    // add a new thumbnail
+  const createThumbnail = () => {
     setThumbnails((state) => {
 
       const th:Thumbnail = {
@@ -127,77 +183,67 @@ export const GenerateView : React.FC = () => {
 
     });
 
+  }
+
+  const generate = async () => {
+
+    setLoading(true);
+
+    // add a new thumbnail
+    createThumbnail();
+
+    let accessToken;
     try {
 
-      const accessToken = await getAccessToken();
-
-      console.log('selectedModel: ', selectedModel);
-
-      const triggerWord = selectedModel?.trigger_word ? selectedModel.trigger_word + " " : ""
-      const queryString = new URLSearchParams({prompt: triggerWord + prompt, model_id: selectedModel?.id || "flux"}).toString();
-
-      // TODO: get from .env
-      const modelUrl = `${process.env.BASE_URL}generate?${queryString}`;
-
-      
-      const generateResponse = await fetch(modelUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        redirect: "follow", // default, but explicit
-        mode: "cors",       // needed if Modal and frontend are on different origins        
-      });
-
-
-      const blob = await generateResponse.blob();
-      const url = URL.createObjectURL(blob);
-
-      const elapsed = (Date.now() - start) / 1000;
-
-      const lastThumbnail:Thumbnail = {
-        url: url,
-        prompt,
-        model: selectedModel?.id ?? "",
-        loading: false,
-        settings: {
-          ...imageSettings
-        }
-      };
-
-      setThumbnails((prev) => {
-        if (prev.length === 0) return prev; // no-op if empty
-        const updated = [...prev];
-        updated[updated.length - 1] = lastThumbnail;
-        return updated;      
-      });
-
-      
-      // setThumbnails(prev => [
-      //   ...prev, 
-      //   { url: url, showElapsed: true, elapsed: elapsed, prompt: prompt, model: selectedModel?.id ?? "", settings: {...imageSettings}, loading: true }
-      // ]);
-
-      // Schedule hiding elapsed text for that image
-      setTimeout(() => {
-        setThumbnails(prev =>
-          prev.map(thumb =>
-            thumb.url === url
-              ? { ...thumb, showElapsed: false }
-              : thumb
-          )
-        );
-      }, 15000);       
-
-      //setImageUrl(url);
+      accessToken = await getAccessToken();
+      if(!accessToken) {
+        console.warn("Could not get an access token.");
+        return;
+      }
 
     } catch (e: any) {
       console.error(e.message);
-      console.log(e.message);
-    } finally {
-      clearInterval(timer);
       setLoading(false);
-    }    
+      return;
+    }
+
+
+    const triggerWord = selectedModel?.trigger_word ? selectedModel.trigger_word + " " : ""
+    const fullPrompt = triggerWord + prompt;
+    const model_id =  selectedModel?.id || "flux"
+
+    setLastThumbnail({
+      url: "",
+      prompt,
+      model: selectedModel?.id ?? "",
+      loading: false,
+      settings: {
+        ...imageSettings
+      }
+    });
+    
+    try {
+      const result = await imageService.generateImageAsync(accessToken, { prompt: fullPrompt, model_id: model_id})
+      console.log('result: ', result);
+
+      setCallId(result);
+      // console.log('blob: ', blob)
+
+      // const url = URL.createObjectURL(blob);
+      // console.log('url: ', url)
+
+      // updateThumbnail({ ...lastThumbnail, url, loading: false});
+    }
+    catch (e) {
+      //updateThumbnail({...lastThumbnail, loading: false});
+      console.error(e);
+    } finally {
+      setLoading(false);
+    }      
+
   };  
+
+
 
   return (
     <>
@@ -235,15 +281,20 @@ export const GenerateView : React.FC = () => {
                 </Box>
               </AccordionDetails>
             </Accordion>
-            <Accordion>
+            <Accordion defaultExpanded>
               <AccordionSummary
                 expandIcon={<ExpandMoreIcon />}
                 aria-controls="panel1bh-content"
                 id="panel1bh-header"
               >
-                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
-                  Prompt
-                </Typography>
+                <Box>
+                  <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+                    Prompt
+                  </Typography>
+                  <Tooltip title="The description of what you want to see in the image." >
+                  <InfoOutlineIcon sx={{fontSize: "18px"}} />
+                  </Tooltip>
+                </Box>
               </AccordionSummary>
               <AccordionDetails>
               <Box sx={{ width: "100%" }}>

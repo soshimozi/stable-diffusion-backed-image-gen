@@ -1,13 +1,12 @@
 import type { AIModel } from "../types/AIModel";
-import dotenv from 'dotenv';
 
-dotenv.config();
+const { VITE_BASE_URL } = import.meta.env;
 
 export class ModelsService {
 
   public async getModels(accessToken: string): Promise<AIModel[]>  {
 
-      const modelUrl = process.env.BASE_URL + "models";
+      const modelUrl = VITE_BASE_URL + "models";
       
       const modelsResponse = await fetch(modelUrl, {
         headers: {

@@ -15,14 +15,17 @@ import { CssBaseline } from '@mui/material';
 import App from './App.tsx'
 import { Provider } from 'react-redux';
 
-const domain = process.env.OKTA_DOMAIN
+
+console.log('domain: ', import.meta.env.VITE_AUTH0_DOMAIN);
+console.log('client_id: ', import.meta.env.VITE_OKTA_CLIENT_ID)
+console.log()
 
 const config = {
-  domain: process.env.OKTA_DOMAIN ?? "",
-  clientId: process.env.OKTA_CLIENT_ID ?? "",
+  domain: import.meta.env.VITE_AUTH0_DOMAIN ?? "",
+  clientId: import.meta.env.VITE_OKTA_CLIENT_ID ?? "",
   authorizationParamters: {
     redirect_uri: window.location.origin,
-    audience: process.env.OKTA_AUDIENCE,
+    audience: import.meta.env.VITE_OKTA_AUDIENCE,
     scope: "read:models create:image openid profile email"      
   }
 }

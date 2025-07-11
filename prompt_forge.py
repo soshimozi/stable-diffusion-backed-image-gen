@@ -577,6 +577,7 @@ def ui():
     import fastapi.staticfiles
     from fastapi import FastAPI
     from fastapi.responses import FileResponse
+    from fastapi.responses import JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
     import os
     import base64
@@ -665,7 +666,9 @@ def ui():
 
         match model_id:
             case "sdxl-turbo":
-                image_data = SDXLTurboGenerator().generate.remote(prompt)  # or .remote() for async
+                image_data = SDXLTurboGenerator().generate.spawn(prompt)                
+                return JSONResponse(content={"job_id": image_data.object_id})
+                #image_data = SDXLTurboGenerator().generate.remote(prompt)  # or .remote() for async
             case "opendalle":
                 image_data = OpenDalleV1Generator().generate.remote(prompt)
             case "iso":
@@ -675,7 +678,9 @@ def ui():
             case "flux-aestehticanime":
                 image_data = AnimeArtGenerator().generate.remote(prompt)
             case "ghibli":
-                image_data = FluxGhibliArtGenerator().generate.remote(prompt)
+                Model = modal.Cls.from_name("image-generator", "FluxGhibliArtGenerator")
+                Model().generate.remote(prompt);
+                #image_data = FluxGhibliArtGenerator().generate.remote(prompt)
             case "sd3.5":
                 image_data = StableDiffusionGenerator().generate.remote(prompt)
             case "flux":
@@ -688,6 +693,56 @@ def ui():
 
         return Response(content=image_data, media_type="image/png")
     
+    @web_app.get("/generate-async", dependencies=[Depends(JWTBearer())])
+    async def proxy_generate_job(prompt: str, model_id: str):
+        if model_id not in MODEL_REGISTRY:
+            raise ValueError(f"Unknown model: {model_id}")        
+        
+        job_id = None
+
+        match model_id:
+            case "sdxl-turbo":
+                job_id = SDXLTurboGenerator().generate.spawn(prompt).object_id                
+                #image_data = SDXLTurboGenerator().generate.remote(prompt)  # or .remote() for async
+            case "opendalle":
+                job_id = OpenDalleV1Generator().generate.spawn(prompt).object_id
+            case "iso":
+                job_id = Isometric3DGenerator().generate.spawn(prompt).object_id
+            case "super-realism":
+                job_id = SuperRealismArtGenerator().generate.spawn(prompt).object_id
+            case "flux-aestehticanime":
+                Model = modal.Cls.from_name("image-generator", "AnimeArtGenerator")
+                #Model().generate.remote(prompt);
+
+                job_id = Model().generate.spawn(prompt).object_id
+
+            case "ghibli":
+                Model = modal.Cls.from_name("image-generator", "FluxGhibliArtGenerator")
+                job_id = Model().generate.spawn(prompt).object_id
+
+                #image_data = FluxGhibliArtGenerator().generate.remote(prompt)
+            case "sd3.5":
+                job_id = StableDiffusionGenerator().generate.spawn(prompt).object_id
+            case "flux":
+                Model = modal.Cls.from_name("image-generator", "FluxGenerator")
+                job_id = Model().generate.spawn(prompt).object_id
+                #image_data = FluxGenerator().generate.remote(prompt)
+            # case "sdxl-base":
+            #     image_data = SDXLBaseGenerator().generate.remote(prompt)
+
+        return JSONResponse(content={"job_id": job_id})
+    
+    @web_app.get("/result/{job_id}", dependencies=[Depends(JWTBearer())])
+    async def poll_results(job_id: str):
+        image_job = modal.FunctionCall.from_id(job_id)
+
+        try:
+            result = image_job.get(timeout=0)
+        except TimeoutError:
+            return JSONResponse(content="", status_code=202)
+
+        return Response(content=result, media_type="image/png")
+
     # web_app.mount(
     #     "/",
     #     fastapi.staticfiles.StaticFiles(directory="/assets", html=True),
