@@ -1,0 +1,405 @@
+import { useAuth0 } from "@auth0/auth0-react";
+import { Box, Button, IconButton, Modal, styled, TextField, Typography } from "@mui/material";
+import { useState } from "react";
+import { useTypedSelector } from "../../store/hooks";
+import type { Thumbnail } from "../../types/Thumbnail";
+import CloseIcon from "@mui/icons-material/Close";
+import { useLocation } from "react-router-dom";
+import MuiAccordion, { type AccordionProps } from '@mui/material/Accordion';
+import MuiAccordionDetails from '@mui/material/AccordionDetails';
+import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
+import MuiAccordionSummary, {
+  type AccordionSummaryProps,
+  accordionSummaryClasses,
+} from '@mui/material/AccordionSummary';
+import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
+import { ThumbnailComponent } from "../ThumbnailComponent";
+import { type ImageSettings } from "../../types/Settings";
+
+type GenerateViewState = {
+  prompt: string;
+}
+
+const Accordion = styled((props: AccordionProps) => (
+  <MuiAccordion disableGutters elevation={0} square {...props} />
+))(({ theme }) => ({
+  border: `1px solid ${theme.palette.divider}`,
+  '&:not(:last-child)': {
+    borderBottom: 0,
+  },
+  '&::before': {
+    display: 'none',
+  },
+}));
+
+const AccordionSummary = styled((props: AccordionSummaryProps) => (
+  <MuiAccordionSummary
+    expandIcon={<ArrowForwardIosSharpIcon sx={{ fontSize: '0.9rem' }} />}
+    {...props}
+  />
+))(({ theme }) => ({
+  [`& .${accordionSummaryClasses.expandIconWrapper}.${accordionSummaryClasses.expanded}`]:
+    {
+      transform: 'rotate(90deg)',
+    },
+  [`& .${accordionSummaryClasses.content}`]: {
+    marginLeft: theme.spacing(1),
+  },
+}));
+
+const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
+  padding: theme.spacing(2),
+  borderTop: '1px solid rgba(0, 0, 0, .125)',
+}));
+
+const DEFAULT_PROMPT = "A racoon in a priests robe.";
+
+export const GenerateView : React.FC = () => {
+
+  const selectedModel = useTypedSelector((state) => state.model.selectedModel);
+
+  const DEFAULT_SETTINGS:ImageSettings = {
+    height: 1024,
+    width: 1024,
+    guidance: 3,
+    steps: 28
+  }
+
+  const { getAccessTokenSilently } = useAuth0();
+  const [loading, setLoading] = useState<boolean>(false);
+  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
+  const [openImage, setOpenImage] = useState<string | null>(null);  
+  
+  const location = useLocation();
+  const defaultPrompt = (location.state as GenerateViewState)?.prompt || DEFAULT_PROMPT; // Accessing state data
+  const [elapsedTime, setElapsedTime] = useState(0);
+  const [prompt, setPrompt] = useState(defaultPrompt);
+  const [expanded, setExpanded] = useState<string | false>(false);
+  const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_SETTINGS);
+
+  const getAccessToken = async (): Promise<string | null> => {
+    try {
+
+      const accessToken = await getAccessTokenSilently({
+        authorizationParams: {
+          audience: `https://promptforge/api`,
+          scope: "create:image",
+        },
+      });
+
+      return accessToken;
+    }
+    catch(ex) 
+    {
+      console.error(ex);
+      return null;
+    }
+  }
+
+  const generate = async () => {
+
+    setLoading(true);
+    const start = Date.now();
+
+    setElapsedTime(0);
+
+    const timer = setInterval(() => {
+      setElapsedTime((Date.now() - start) / 1000);
+    }, 100);
+
+    // add a new thumbnail
+    setThumbnails((state) => {
+
+      const th:Thumbnail = {
+        url: "",
+        prompt: "",
+        model: "",
+        settings: {
+          height: imageSettings.height,
+          width: imageSettings.width,
+          guidance: imageSettings.guidance,
+          seed: imageSettings.seed,
+          steps: imageSettings.steps
+        },
+        loading: true
+      }
+      return [...state, th];
+
+    });
+
+    try {
+
+      const accessToken = await getAccessToken();
+
+      console.log('selectedModel: ', selectedModel);
+
+      const triggerWord = selectedModel?.trigger_word ? selectedModel.trigger_word + " " : ""
+      const queryString = new URLSearchParams({prompt: triggerWord + prompt, model_id: selectedModel?.id || "flux"}).toString();
+
+      // TODO: get from .env
+      const modelUrl = `${process.env.BASE_URL}generate?${queryString}`;
+
+      
+      const generateResponse = await fetch(modelUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        redirect: "follow", // default, but explicit
+        mode: "cors",       // needed if Modal and frontend are on different origins        
+      });
+
+
+      const blob = await generateResponse.blob();
+      const url = URL.createObjectURL(blob);
+
+      const elapsed = (Date.now() - start) / 1000;
+
+      const lastThumbnail:Thumbnail = {
+        url: url,
+        prompt,
+        model: selectedModel?.id ?? "",
+        loading: false,
+        settings: {
+          ...imageSettings
+        }
+      };
+
+      setThumbnails((prev) => {
+        if (prev.length === 0) return prev; // no-op if empty
+        const updated = [...prev];
+        updated[updated.length - 1] = lastThumbnail;
+        return updated;      
+      });
+
+      
+      // setThumbnails(prev => [
+      //   ...prev, 
+      //   { url: url, showElapsed: true, elapsed: elapsed, prompt: prompt, model: selectedModel?.id ?? "", settings: {...imageSettings}, loading: true }
+      // ]);
+
+      // Schedule hiding elapsed text for that image
+      setTimeout(() => {
+        setThumbnails(prev =>
+          prev.map(thumb =>
+            thumb.url === url
+              ? { ...thumb, showElapsed: false }
+              : thumb
+          )
+        );
+      }, 15000);       
+
+      //setImageUrl(url);
+
+    } catch (e: any) {
+      console.error(e.message);
+      console.log(e.message);
+    } finally {
+      clearInterval(timer);
+      setLoading(false);
+    }    
+  };  
+
+  return (
+    <>
+      <Box sx={{
+        padding: "5px",
+        display: "flex",
+        flexDirection: "row"
+      }}>
+
+        <Box sx={{
+          display: "flex",
+          flexDirection: "column",
+          width: "20%",
+          paddingRight: "15px",
+        }}>
+
+          <Box sx={{
+            height: "calc(90vh - 100px - 64px)",
+            overflowY: "auto",
+            paddingBottom: "15px"
+          }}>
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="panel4bh-content"
+                id="panel4bh-header"
+              >
+                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+                  Model
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{height: "400px"}}>
+                Details Comming!
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="panel1bh-content"
+                id="panel1bh-header"
+              >
+                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+                  Prompt
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+              <Box sx={{ width: "100%" }}>
+                <TextField
+                  rows={4}
+                  value={prompt}
+                  placeholder="Enter an image prompt."
+                  multiline
+                  fullWidth
+                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                    setPrompt(event.target.value);
+                  }}
+                />
+              </Box>              
+              </AccordionDetails>
+            </Accordion>          
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="panel2bh-content"
+                id="panel2bh-header"
+              >
+                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+                  Output Size
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{height: "400px"}}>
+                Details Comming!
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+            <Accordion>
+              <AccordionSummary
+                expandIcon={<ExpandMoreIcon />}
+                aria-controls="panel3bh-content"
+                id="panel3bh-header"
+              >
+                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+                  Advanced Settings
+                </Typography>
+              </AccordionSummary>
+              <AccordionDetails>
+                <Box sx={{height: "400px"}}>
+                Details Comming!
+                </Box>
+              </AccordionDetails>
+            </Accordion>
+          </Box>
+
+          <Box sx={{height: "100px", display: "flex", alignItems: "flex-start", flexDirection: "column", gap: "6px"}}>
+            <Box sx={{display: "flex", alignItems: "center", gap: "8px", justifyContent: "space-between", width: "100%"}}>
+              <Typography sx={{fontWeight: 400, fontSize: "14px"}}>Number of Images</Typography><Box sx={{width: "60px"}}><TextField variant="outlined" size="small" /></Box>
+            </Box>
+
+            <Button sx={{width: "100%"}} variant={"contained"} disabled={loading} onClick={generate}>Create</Button>
+            <Box>
+              <Typography>You will be charged {10} tokens.</Typography>
+            </Box>
+
+          </Box>
+
+        </Box>
+
+        <Box
+          sx={{
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fill, minmax(115px, 1fr))",          
+            maxWidth: "100%",
+            gap: "10px",
+            overflowY: "auto",          // show scrollbar only when needed
+            overflowX: "hidden",        // prevent horizontal scroll
+            userSelect: "none"
+          }}
+        >
+          {thumbnails.map((thumb, index) => (
+            <ThumbnailComponent setOpenImage={setOpenImage} index={index} thumb={thumb} key={index} loading={thumb.loading} />
+                // <Box
+                //   onClick={() => setOpenImage(thumb.url)}
+                //   key={index}
+                //   sx={{
+                //     width: "115px",
+                //     height: "115px",
+                //     border: "1px solid #ccc",
+                //     borderRadius: "6px",
+                //     overflow: "hidden",
+                //     cursor: "pointer",
+                //   }}
+                // >
+                //   <img
+                //     src={thumb.url}
+                //     alt={`Thumbnail ${index + 1}`}
+                //     style={{ width: "100%", height: "100%", objectFit: "cover" }}
+                //   />
+                // </Box>
+            ))
+          }
+        </Box>        
+      </Box>
+      <Modal
+        open={!!openImage}
+        onClose={() => setOpenImage(null)}
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          margin: "20px"
+        }}
+      >
+        <Box
+          sx={{
+            position: "relative",
+            width: "100%",
+            maxWidth: "900px",
+            height: "100%",
+            maxHeight: "90vh", // allow modal to fit within screen height
+            backgroundColor: "#000",
+            outline: "none",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            borderRadius: "8px",
+            padding: "10px",
+            flexDirection: "column"
+
+          }}
+        >
+          {/* Close Button */}
+          <IconButton
+            onClick={() => setOpenImage(null)}
+            sx={{
+              position: "absolute",
+              top: 8,
+              right: 8,
+              color: "#fff",
+              zIndex: 2,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+
+          <Box sx={{color: "#fff"}}>Stuff here</Box>
+
+          {/* Full-size Image */}
+          <img
+            src={openImage ?? ""}
+            alt="Full view"
+            style={{
+              maxWidth: "90%",
+              maxHeight: "90%",
+              objectFit: "contain",
+              borderRadius: "20px"
+            }}
+          />
+        </Box>
+      </Modal>        
+    </>
+  );
+}
