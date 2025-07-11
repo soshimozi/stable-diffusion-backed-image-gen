@@ -566,12 +566,10 @@ MODEL_LIST =   [
         ]  
 
 
-
-
-
 @app.function(
         image=web_image, 
         min_containers=1, 
+        secrets=[modal.Secret.from_name("environment")]
 )
 @modal.concurrent(max_inputs=1000)
 @modal.asgi_app()
@@ -681,7 +679,9 @@ def ui():
             case "sd3.5":
                 image_data = StableDiffusionGenerator().generate.remote(prompt)
             case "flux":
-                image_data = FluxGenerator().generate.remote(prompt)
+                Model = modal.Cls.from_name("image-generator", "FluxGenerator")
+                image_data = Model().generate.remote(prompt)
+                #image_data = FluxGenerator().generate.remote(prompt)
             # case "sdxl-base":
             #     image_data = SDXLBaseGenerator().generate.remote(prompt)
 
