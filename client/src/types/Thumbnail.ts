@@ -6,4 +6,5 @@ export interface Thumbnail {
   model: string;
   loading: boolean;
   settings: ImageSettings;
+  hasError: boolean;
 }
