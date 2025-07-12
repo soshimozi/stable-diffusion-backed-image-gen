@@ -1,58 +1,18 @@
 import { useAuth0 } from "@auth0/auth0-react";
-import { Box, Button, IconButton, Modal, styled, TextField, Tooltip, Typography } from "@mui/material";
+import { Box, Button, CircularProgress, IconButton, Modal, TextField, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useTypedSelector } from "../../store/hooks";
 import type { Thumbnail } from "../../types/Thumbnail";
 import CloseIcon from "@mui/icons-material/Close";
 import { useLocation } from "react-router-dom";
-import MuiAccordion, { type AccordionProps } from '@mui/material/Accordion';
-import MuiAccordionDetails from '@mui/material/AccordionDetails';
-import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
-import MuiAccordionSummary, {
-  type AccordionSummaryProps,
-  accordionSummaryClasses,
-} from '@mui/material/AccordionSummary';
-import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
 import { ThumbnailComponent } from "../ThumbnailComponent";
 import { type ImageSettings } from "../../types/Settings";
 import { ImageService, type ImageGenerationOptions } from "../../services/ImageService";
-import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
+import { SideBar } from "../SideBar";
 
 type GenerateViewState = {
   prompt: string;
 }
-
-const Accordion = styled((props: AccordionProps) => (
-  <MuiAccordion disableGutters elevation={0} square {...props} />
-))(({ theme }) => ({
-  border: `1px solid ${theme.palette.divider}`,
-  '&:not(:last-child)': {
-    borderBottom: 0,
-  },
-  '&::before': {
-    display: 'none',
-  },
-}));
-
-const AccordionSummary = styled((props: AccordionSummaryProps) => (
-  <MuiAccordionSummary
-    expandIcon={<ArrowForwardIosSharpIcon sx={{ fontSize: '0.9rem' }} />}
-    {...props}
-  />
-))(({ theme }) => ({
-  [`& .${accordionSummaryClasses.expandIconWrapper}.${accordionSummaryClasses.expanded}`]:
-    {
-      transform: 'rotate(90deg)',
-    },
-  [`& .${accordionSummaryClasses.content}`]: {
-    marginLeft: theme.spacing(1),
-  },
-}));
-
-const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
-  padding: theme.spacing(2),
-  marginTop: theme.spacing(-2)
-}));
 
 const DEFAULT_PROMPT = "A racoon in a priests robe.";
 
@@ -61,7 +21,6 @@ export const GenerateView : React.FC = () => {
 
   const selectedModel = useTypedSelector((state) => state.model.selectedModel);
   
-
   const DEFAULT_SETTINGS:ImageSettings = {
     height: 1024,
     width: 1024,
@@ -75,20 +34,26 @@ export const GenerateView : React.FC = () => {
   const [openImage, setOpenImage] = useState<string | null>(null);  
   
   const location = useLocation();
-  const defaultPrompt = (location.state as GenerateViewState)?.prompt || DEFAULT_PROMPT; // Accessing state data
+  const defaultPrompt = (location.state as GenerateViewState)?.prompt || ""; // Accessing state data
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_SETTINGS);
   const [callId, setCallId] = useState<string | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [lastThumbnail, setLastThumbnail] = useState<Thumbnail | null>(null);
+  const [numberImages, setNumberImages] = useState("1");
+  const [cost, setCost] = useState<number>(0);
   
+  useEffect(() => {
+    
+    setCost(parseInt(numberImages) * 5);
+
+  }, [numberImages])
 
   useEffect(() => {
     if (!callId || !token) return;
 
     const pollInterval = setInterval(async () => {
       try {
-        console.log('checking result');
 
         const response = await fetch(
           `${import.meta.env.VITE_BASE_URL}result/${callId}`, 
@@ -100,14 +65,11 @@ export const GenerateView : React.FC = () => {
         );
 
         if (response.status === 202) {
-          console.log('still working');
           return;
         }
 
         if (response.ok) {
           const blob = await response.blob();
-
-          console.log('blob: ', blob)
 
           const url = URL.createObjectURL(blob);
 
@@ -121,7 +83,13 @@ export const GenerateView : React.FC = () => {
           throw new Error("Failed to get results");
         }
       } catch (error) {
+
         console.error("Error polling results:", error);
+
+        if(lastThumbnail) {
+          updateThumbnail({ ...lastThumbnail, loading: false, hasError: true});          
+        }
+
         clearInterval(pollInterval);
         setCallId(null);
       }
@@ -177,7 +145,8 @@ export const GenerateView : React.FC = () => {
           seed: imageSettings.seed,
           steps: imageSettings.steps
         },
-        loading: true
+        loading: true,
+        hasError: false
       }
       return [...state, th];
 
@@ -207,43 +176,39 @@ export const GenerateView : React.FC = () => {
       return;
     }
 
-
     const triggerWord = selectedModel?.trigger_word ? selectedModel.trigger_word + " " : ""
     const fullPrompt = triggerWord + prompt;
     const model_id =  selectedModel?.id || "flux"
 
+    console.log(`we will be outputing ${numberImages} images`);
+
     setLastThumbnail({
       url: "",
       prompt,
-      model: selectedModel?.id ?? "",
+      model: model_id,
       loading: false,
       settings: {
         ...imageSettings
-      }
+      },
+      hasError: false,
     });
     
     try {
-      const result = await imageService.generateImageAsync(accessToken, { prompt: fullPrompt, model_id: model_id})
-      console.log('result: ', result);
-
+      const result = await imageService.generateImageAsync(accessToken, { prompt: fullPrompt, model_id: model_id, width: 512, height: 512})
       setCallId(result);
-      // console.log('blob: ', blob)
-
-      // const url = URL.createObjectURL(blob);
-      // console.log('url: ', url)
-
-      // updateThumbnail({ ...lastThumbnail, url, loading: false});
     }
     catch (e) {
-      //updateThumbnail({...lastThumbnail, loading: false});
+
+      if(lastThumbnail) {
+        updateThumbnail({...lastThumbnail, loading: false, hasError: true})
+      }
+
       console.error(e);
     } finally {
       setLoading(false);
     }      
 
   };  
-
-
 
   return (
     <>
@@ -259,100 +224,45 @@ export const GenerateView : React.FC = () => {
           width: "20%",
           paddingRight: "15px",
         }}>
-
-          <Box sx={{
-            height: "calc(90vh - 100px - 64px)",
-            overflowY: "auto",
-            paddingBottom: "15px"
-          }}>
-            <Accordion>
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls="panel4bh-content"
-                id="panel4bh-header"
-              >
-                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
-                  Model
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{height: "400px"}}>
-                Details Comming!
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-            <Accordion defaultExpanded>
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls="panel1bh-content"
-                id="panel1bh-header"
-              >
-                <Box>
-                  <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
-                    Prompt
-                  </Typography>
-                  <Tooltip title="The description of what you want to see in the image." >
-                  <InfoOutlineIcon sx={{fontSize: "18px"}} />
-                  </Tooltip>
-                </Box>
-              </AccordionSummary>
-              <AccordionDetails>
-              <Box sx={{ width: "100%" }}>
-                <TextField
-                  rows={4}
-                  value={prompt}
-                  placeholder="Enter an image prompt."
-                  multiline
-                  fullWidth
-                  onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                    setPrompt(event.target.value);
-                  }}
-                />
-              </Box>              
-              </AccordionDetails>
-            </Accordion>          
-            <Accordion>
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls="panel2bh-content"
-                id="panel2bh-header"
-              >
-                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
-                  Output Size
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{height: "400px"}}>
-                Details Comming!
-                </Box>
-              </AccordionDetails>
-            </Accordion>
-            <Accordion>
-              <AccordionSummary
-                expandIcon={<ExpandMoreIcon />}
-                aria-controls="panel3bh-content"
-                id="panel3bh-header"
-              >
-                <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
-                  Advanced Settings
-                </Typography>
-              </AccordionSummary>
-              <AccordionDetails>
-                <Box sx={{height: "400px"}}>
-                Details Comming!
-                </Box>
-              </AccordionDetails>
-            </Accordion>
+          <Box display={"flex"} alignItems={"center"} alignContent={"left"} justifyContent={"left"} sx={{padding: "16px 16px 16px 0px"}}  borderBottom={"1px solid #ccc"} height={"40px"} marginBottom={"16px"}>
+            <Box>
+            <Typography sx={{fontWeight: 800, fontSize: "24px"}}>Create From Scratch</Typography>
+            </Box>
           </Box>
 
-          <Box sx={{height: "100px", display: "flex", alignItems: "flex-start", flexDirection: "column", gap: "6px"}}>
+          <Box sx={{
+            height: "calc(90vh - 100px - 64px - 64px)",
+            overflowY: "auto",
+            padding: "5px",
+            marginBottom: "15px",
+          }}>
+            <SideBar onPromptChange={(prompt) => setPrompt(prompt)} prompt={prompt} />
+          </Box>
+
+          <Box sx={{height: "100px", display: "flex", alignItems: "flex-start", flexDirection: "column", gap: "6px", borderTop: "1px solid #ccc", padding: "5px"}}>
             <Box sx={{display: "flex", alignItems: "center", gap: "8px", justifyContent: "space-between", width: "100%"}}>
-              <Typography sx={{fontWeight: 400, fontSize: "14px"}}>Number of Images</Typography><Box sx={{width: "60px"}}><TextField variant="outlined" size="small" /></Box>
+              <Typography sx={{fontWeight: 400, fontSize: "14px"}}>Number of Images</Typography>
+              <Box sx={{width: "60px"}}>
+                <TextField variant="outlined" value={numberImages} 
+                  onChange={(e) => {
+                    
+                    if(isNaN(parseInt(e.target.value))) {
+                      setNumberImages("1");
+                      return;
+                    }
+
+                    if(parseInt(e.target.value) < 1) return;
+
+                    setNumberImages(e.target.value)
+                  }}
+
+                  inputProps={{type: 'number'}} size="small" />
+              </Box>
             </Box>
 
-            <Button sx={{width: "100%"}} variant={"contained"} disabled={loading} onClick={generate}>Create</Button>
+            <Button sx={{width: "100%"}} variant={"contained"} disabled={loading || !prompt} onClick={generate} endIcon={loading ? <CircularProgress size={10} /> : null}>Create</Button>
             <Box>
-              <Typography>You will be charged {10} tokens.</Typography>
+              <Typography>You will be charged {cost} tokens.</Typography>
             </Box>
 
           </Box>
@@ -370,28 +280,7 @@ export const GenerateView : React.FC = () => {
             userSelect: "none"
           }}
         >
-          {thumbnails.map((thumb, index) => (
-            <ThumbnailComponent setOpenImage={setOpenImage} index={index} thumb={thumb} key={index} loading={thumb.loading} />
-                // <Box
-                //   onClick={() => setOpenImage(thumb.url)}
-                //   key={index}
-                //   sx={{
-                //     width: "115px",
-                //     height: "115px",
-                //     border: "1px solid #ccc",
-                //     borderRadius: "6px",
-                //     overflow: "hidden",
-                //     cursor: "pointer",
-                //   }}
-                // >
-                //   <img
-                //     src={thumb.url}
-                //     alt={`Thumbnail ${index + 1}`}
-                //     style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                //   />
-                // </Box>
-            ))
-          }
+          {thumbnails.map((thumb, index) => (<ThumbnailComponent setOpenImage={setOpenImage} index={index} thumb={thumb} key={index} loading={thumb.loading} hasError={thumb.hasError} />))}
         </Box>        
       </Box>
       <Modal

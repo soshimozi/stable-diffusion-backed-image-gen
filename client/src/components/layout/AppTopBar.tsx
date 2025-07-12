@@ -1,7 +1,7 @@
 // components/layout/AppTopBar.tsx
 import React from "react";
 import { styled, alpha } from '@mui/material/styles';
-import { AppBar, Badge, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Toolbar, Typography } from "@mui/material";
+import { AppBar, Badge, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Toolbar, Typography, Link as MUILink } from "@mui/material";
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import MailIcon from '@mui/icons-material/Mail';
@@ -246,18 +246,34 @@ const AppTopBar: React.FC = () => {
         {/* <Typography variant="h6" sx={{ mt: 2 }}>Menu</Typography> */}
         {/* Example menu items */}
       {isAuthenticated && (
-      <List>
+      <Box sx={{display: "flex", flexDirection: "column"}}>
         {menu.map((item, index) => {
           return (
-            <ListItem key={index} component={Link} to={item.to} onClick={() => setDrawerOpen(false)}>
-              <ListItemText primary={item.primary} />
-              <ListItemIcon>
-                {item.icon}
-              </ListItemIcon>
-            </ListItem>
+            // <Typography color="textSecondary" variant="subtitle1">Test</Typography>
+              <MUILink
+                href={item.to}
+                key={index}
+                variant="subtitle1"
+                color="textSecondary"
+                underline="none"
+                onClick={() => {
+                  console.info("I'm a button.");
+                }}
+              >
+                <Box sx={{display: "flex", flexDirection: "row", justifyContent: "space-between", ml: 1, mr: 1}}>
+                  {item.primary}
+                  {item.icon}
+                </Box>
+              </MUILink>            
+            // <ListItem key={index} component={Link} to={item.to} onClick={() => setDrawerOpen(false)} color="textSecondary">
+            //   <Typography>Test</Typography>
+            //   <ListItemIcon>
+            //     {item.icon}
+            //   </ListItemIcon>
+            // </ListItem>
           )
         })}
-      </List>
+      </Box>
       )}
       </Box>
     </Drawer>    

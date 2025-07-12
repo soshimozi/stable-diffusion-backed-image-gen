@@ -14,7 +14,25 @@ import { CssBaseline } from '@mui/material';
 
 import App from './App.tsx'
 import { Provider } from 'react-redux';
+import { createTheme, ThemeProvider, type ThemeOptions, type Theme } from '@mui/material/styles';
 
+const applicationThemeOptions: ThemeOptions = {
+  palette: {
+    mode: 'dark',
+    primary: {
+      main: '#3f51b5',
+    },
+    secondary: {
+      main: '#f50057',
+    },
+  },
+  typography: {
+    fontFamily: 'Fredoka',
+  },
+};
+
+
+const applicationTheme: Theme = createTheme(applicationThemeOptions);
 
 console.log('domain: ', import.meta.env.VITE_AUTH0_DOMAIN);
 console.log('client_id: ', import.meta.env.VITE_OKTA_CLIENT_ID)
@@ -33,12 +51,12 @@ createRoot(document.getElementById('root')!).render(
   <StrictMode>
       <Auth0Provider {...config}>
       <BrowserRouter>
-        {/* <ThemeProvider theme={darkTheme}> */}
+        <ThemeProvider theme={applicationTheme}>
           <CssBaseline />
           <Provider store={store}>
             <App />
           </Provider>
-        {/* </ThemeProvider> */}
+        </ThemeProvider>
       </BrowserRouter>
     </Auth0Provider>
   </StrictMode>,
