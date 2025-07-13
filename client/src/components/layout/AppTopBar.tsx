@@ -1,6 +1,6 @@
 // components/layout/AppTopBar.tsx
-import React from "react";
-import { styled, alpha } from '@mui/material/styles';
+import React, { useState, type JSX } from "react";
+import { styled, alpha, useTheme } from '@mui/material/styles';
 import { AppBar, Badge, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Toolbar, Typography, Link as MUILink } from "@mui/material";
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
@@ -13,7 +13,8 @@ import ImageIcon from '@mui/icons-material/Image';
 import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import TokenIcon from '@mui/icons-material/Token';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
-import { Link } from "react-router-dom";
+import { Link, useNavigate, useNavigation } from "react-router-dom";
+import HomeIcon from '@mui/icons-material/Home';
 
 interface Props {
   drawerWidth: number;
@@ -61,6 +62,11 @@ const StyledInputBase = styled(InputBase)(({ theme }) => ({
 
 const menu = [
   {
+    to: "/",
+    primary: "Home",
+    icon: <HomeIcon />
+  },
+  {
     to: "/generate",
     primary: "Generate",
     icon: <ImageIcon />
@@ -83,6 +89,36 @@ const menu = [
   }
 ]
 
+interface MenuEntryProps {
+  title: string,
+  onClick: () => void,
+  icon:  JSX.Element
+}
+
+const MenuEntry: React.FC<MenuEntryProps> = ({title, icon, onClick}) => {
+  const [hover, setHover] = useState(false);
+  const theme = useTheme();
+
+  return (
+      <Box
+      onClick={onClick}
+      onMouseOver={() => setHover(true)}
+      onMouseOut={() => setHover(false)}
+      sx={{
+        padding: "4px",
+        display: "flex", 
+        flexDirection: "row", 
+        justifyContent: "space-between", 
+        ml: 1, 
+        mr: 1, 
+        background: hover ? theme.palette.secondary.dark : "",
+        cursor: "pointer"}}
+        >
+        <Typography variant="button" >{title}</Typography>
+        {icon}
+      </Box>
+  )
+}
 const AppTopBar: React.FC = () => {
   const { user, isAuthenticated, isLoading, loginWithRedirect, logout  } = useAuth0();
  
@@ -90,6 +126,7 @@ const AppTopBar: React.FC = () => {
   const [mailCount, setMailCount] = React.useState(0);
   const [messageCount, setMessageCount] = React.useState(0);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
+  const navigate = useNavigate();
 
 
   if( isLoading ) return null;
@@ -242,35 +279,15 @@ const AppTopBar: React.FC = () => {
           <ChevronLeftIcon />
         </IconButton>
       </Box>
-        {/* Add drawer content here */}
-        {/* <Typography variant="h6" sx={{ mt: 2 }}>Menu</Typography> */}
-        {/* Example menu items */}
+
       {isAuthenticated && (
-      <Box sx={{display: "flex", flexDirection: "column"}}>
+      <Box sx={{display: "flex", flexDirection: "column", gap: 1}}>
         {menu.map((item, index) => {
           return (
-            // <Typography color="textSecondary" variant="subtitle1">Test</Typography>
-              <MUILink
-                href={item.to}
-                key={index}
-                variant="subtitle1"
-                color="textSecondary"
-                underline="none"
-                onClick={() => {
-                  console.info("I'm a button.");
-                }}
-              >
-                <Box sx={{display: "flex", flexDirection: "row", justifyContent: "space-between", ml: 1, mr: 1}}>
-                  {item.primary}
-                  {item.icon}
-                </Box>
-              </MUILink>            
-            // <ListItem key={index} component={Link} to={item.to} onClick={() => setDrawerOpen(false)} color="textSecondary">
-            //   <Typography>Test</Typography>
-            //   <ListItemIcon>
-            //     {item.icon}
-            //   </ListItemIcon>
-            // </ListItem>
+            <MenuEntry title={item.primary} icon={item.icon} onClick={() => {
+              setDrawerOpen(false);
+              navigate(item.to)
+            }} />
           )
         })}
       </Box>

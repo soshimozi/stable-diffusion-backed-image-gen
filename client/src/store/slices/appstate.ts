@@ -3,16 +3,14 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 
 
 interface AppState {
-  generating: boolean,
-  lastResult: string | null,
+  token: string,
   currentPrompt: string | null,
   promptHistory: string[]
 }
 
 
 const initialState: AppState = {
-  generating: false,
-  lastResult: null,
+  token: "",
   currentPrompt: null,
   promptHistory: []
 };
@@ -22,11 +20,8 @@ export const slice = createSlice({
   name: 'model',
   initialState,
   reducers: {
-    setGenerating: (state, { payload }: PayloadAction<boolean>) => {
-      state.generating = payload;
-    },
-    setLastResult: (state, { payload }: PayloadAction<string | null>) => {
-      state.lastResult = payload;
+    setToken: (state, { payload }: PayloadAction<string>) => {
+      state.token = payload;
     },
     setCurrentPrompt: (state, { payload }: PayloadAction<string | null>) => {
       state.currentPrompt = payload;
@@ -37,7 +32,7 @@ export const slice = createSlice({
   }
 });
 
-export const { setGenerating, setLastResult, setCurrentPrompt, setPromptHistory } = slice.actions;
+export const { setCurrentPrompt, setPromptHistory } = slice.actions;
 
 
 export const actions = {

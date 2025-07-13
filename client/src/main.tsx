@@ -25,18 +25,11 @@ const applicationThemeOptions: ThemeOptions = {
     secondary: {
       main: '#f50057',
     },
-  },
-  typography: {
-    fontFamily: 'Fredoka',
-  },
+  }
 };
 
 
 const applicationTheme: Theme = createTheme(applicationThemeOptions);
-
-console.log('domain: ', import.meta.env.VITE_AUTH0_DOMAIN);
-console.log('client_id: ', import.meta.env.VITE_OKTA_CLIENT_ID)
-console.log()
 
 const config = {
   domain: import.meta.env.VITE_AUTH0_DOMAIN ?? "",

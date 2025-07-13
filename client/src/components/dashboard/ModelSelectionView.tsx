@@ -8,6 +8,7 @@ import { ModelsService } from "../../services/ModelsService";
 import { useEffect, useState } from "react";
 import { Loader } from "../Loader";
 import { type UserProfile } from "../../types/UserProfile";
+import { ModelView } from "../ModelView";
 
 
 export const ModelSelectionView: React.FC = () => {
@@ -15,7 +16,7 @@ export const ModelSelectionView: React.FC = () => {
   const models = useTypedSelector((state) => state.model.modelList);
   const selectedModel = useTypedSelector((state) => state.model.selectedModel);
 
-  const { isLoading, getAccessTokenSilently } = useAuth0();
+  const { isLoading } = useAuth0();
 
   const [profile] = useState<UserProfile>(() => { 
     const saved = localStorage.getItem("profile") ?? "";
@@ -23,44 +24,11 @@ export const ModelSelectionView: React.FC = () => {
     return initialValue || { email: "", selectedModelId: undefined};
   });
 
-  const modelsService = new ModelsService();
 
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
-
-  useEffect(() => {
-
-    if(dataLoading || isLoading || models.length > 0 || error) return;
-
-    (async() => {
-
-      setDataLoading(true);
-
-      try {
-        const accessToken = await getAccessTokenSilently({
-          authorizationParams: {
-            audience: `https://promptforge/api`,
-            scope: "read:models",
-          },
-        });
-
-        const modelList = await modelsService.getModels(accessToken);
-        dispatch(actions.models.setModels(modelList));
-
-
-      } catch (e: any) {
-        console.error(e.message);
-        setError(e.message);
-      }
-      finally {
-        setDataLoading(false);
-      }
-
-    })();
-
-  }, [models, dataLoading, isLoading, error]);  
 
   const onModelClick = (model: AIModel): void => {
+    console.log('onModalClick');
+    
     dispatch(actions.models.setModel(model))
 
     const newProfile = { ...profile };
@@ -69,7 +37,7 @@ export const ModelSelectionView: React.FC = () => {
     localStorage.setItem("profile", JSON.stringify(newProfile));
   }
 
-  if(isLoading || dataLoading) return <Loader />
+  if(isLoading) return <Loader />
 
 
 return (
@@ -85,21 +53,24 @@ return (
     if(!model.available) return null;
 
     return (
-      <Box key={index} sx={{
-        width: "200px",
-        padding: "5px",
-        height: "auto",
-        border: hasBorder ? "1px solid #223399" : "none",
-        borderRadius: "5px"
+
+      <ModelView key={index} name={model.name} description={model.description} image={model.image_data} tags={model.tags} onClick={() => onModelClick(model)} selected={model.id === selectedModel?.id} />
+      
+      // <Box key={index} sx={{
+      //   width: "200px",
+      //   padding: "5px",
+      //   height: "auto",
+      //   border: hasBorder ? "1px solid #223399" : "none",
+      //   borderRadius: "5px"
         
-      }}>
+      // }}>
         
-        <img src={model.image_data} width={"100%"} height={"auto"} style={{borderRadius: "5px", cursor: "pointer"}} onClick={() => onModelClick(model)} />
-        <Box sx={{textAlign: "center"}} >
-        <Typography sx={{fontWeight: "800", fontSize: "18px"}}>{model.name}</Typography>
-        <Typography sx={{fontWeight: "300", fontSize: "12px"}}>{model.description}</Typography>
-        </Box>
-      </Box>
+      //   <img src={model.image_data} width={"100%"} height={"auto"} style={{borderRadius: "5px", cursor: "pointer"}} onClick={() => onModelClick(model)} />
+      //   <Box sx={{textAlign: "center"}} >
+      //   <Typography variant="h6">{model.name}</Typography>
+      //   <Typography variant="body2">{model.description}</Typography>
+      //   </Box>
+      // </Box>
     )
   })}
 </Box>

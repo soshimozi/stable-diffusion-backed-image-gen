@@ -12,29 +12,12 @@ import { actions } from "../../store/actions";
 import type { UserProfile } from "../../types/UserProfile";
 
 
+const { VITE_BASE_URL } = import.meta.env;
+
+
 const AppLayout: React.FC = () => {
-  const { isLoading, getAccessTokenSilently} = useAuth0();
+  //const { isLoading, getAccessTokenSilently} = useAuth0();
 
-
-  const [profile] = useState<UserProfile | undefined>(() => { 
-    const saved = localStorage.getItem("profile") ?? "";
-
-    if(!saved) {
-      const profile:UserProfile = { email: "", selectedModelId: undefined};
-      localStorage.setItem("profile", JSON.stringify(profile));
-
-      return profile;
-    }
-
-    try {
-      const initialValue = JSON.parse(saved);
-      return initialValue;
-    }
-    catch(ex) {
-      console.error(ex);
-      return undefined;
-    }
-  });
 
   const modelsService = new ModelsService();
   const models = useTypedSelector((state) => state.model.modelList)
@@ -42,52 +25,66 @@ const AppLayout: React.FC = () => {
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
+  // useEffect(() => {
 
-    if(dataLoading || isLoading || models.length > 0 || error) return;
+  //   if(dataLoading || isLoading || models.length > 0 || error) return;
 
-    (async() => {
+  //   (async() => {
 
-      setDataLoading(true);
+  //     setDataLoading(true);
 
-      try {
+  //     try {
 
-        const accessToken = await getAccessTokenSilently({
-          authorizationParams: {
-            audience: `https://promptforge/api`,
-            scope: "read:models",
-          },
-        });
+  //       const accessToken = await getAccessTokenSilently({
+  //         authorizationParams: {
+  //           audience: `https://promptforge/api`,
+  //           scope: "read:models",
+  //         },
+  //       });
 
-        const modelList = await modelsService.getModels(accessToken);
+  //       const modelList = await modelsService.getModels(accessToken);
 
-        dispatch(actions.models.setModels(modelList));
-
-
-        const modelId = profile?.selectedModelId;
-        const selectedModel = modelList.find((v) => {
-          return v.id === modelId;
-        })
-
-        dispatch(actions.models.setModel(selectedModel || modelList[0]));
+  //       dispatch(actions.models.setModels(modelList));
 
 
-      } catch (e: any) {
-        console.error(e.message);
-        setError(e.message);
-      }
-      finally {
-        setDataLoading(false);
-      }
+  //       const profileResponse = await fetch(`${VITE_BASE_URL}` + 'me', 
+  //         {
+  //           headers: {
+  //             Authorization: `Bearer ${accessToken}`,
+  //           },          
+  //         }
+  //       )
 
-    })();
+  //       let selectedModel;
+  //       if(profileResponse.status === 200) {
+  //         console.log('profile: ', await profileResponse.json())
+  //       }
 
-  }, [models, dataLoading, isLoading, error]);
+
+  //       // const modelId = profile?.selectedModelId;
+  //       // const selectedModel = modelList.find((v) => {
+  //       //   return v.id === modelId;
+  //       // })
+
+  //       dispatch(actions.models.setModel(selectedModel || modelList[0]));
 
 
-  if(isLoading || dataLoading) return (
-    <Loader />
-  )
+  //     } catch (e: any) {
+  //       console.error(e.message);
+  //       setError(e.message);
+  //     }
+  //     finally {
+  //       setDataLoading(false);
+  //     }
+
+  //   })();
+
+  // }, [models, dataLoading, isLoading, error]);
+
+
+  // if(isLoading || dataLoading) return (
+  //   <Loader />
+  // )
 
   return (
     <Box sx={{ display: "flex" }}>

@@ -14,34 +14,34 @@ export type ImageGenerationOptions = {
 
 export class ImageService {
 
-  public async generateImage(accessToken: string, options: ImageGenerationOptions): Promise<Blob>  {
+  // public async generateImage(accessToken: string, options: ImageGenerationOptions): Promise<Blob>  {
 
-      const queryString = new URLSearchParams({prompt: options.prompt, model_id: options.model_id}).toString();
+  //     const queryString = new URLSearchParams({prompt: options.prompt, model_id: options.model_id}).toString();
 
-      // TODO: get from .env
-      const modelUrl = `${VITE_BASE_URL}generate?${queryString}`;
+  //     // TODO: get from .env
+  //     const modelUrl = `${VITE_BASE_URL}/generate?${queryString}`;
 
-      const generateResponse = await fetch(modelUrl, {
-        headers: {
-          Authorization: `Bearer ${accessToken}`,
-        },
-        redirect: "follow", // default, but explicit
-        mode: "cors",       // needed if Modal and frontend are on different origins        
-      });
+  //     const generateResponse = await fetch(modelUrl, {
+  //       headers: {
+  //         Authorization: `Bearer ${accessToken}`,
+  //       },
+  //       redirect: "follow", // default, but explicit
+  //       mode: "cors",       // needed if Modal and frontend are on different origins        
+  //     });
 
 
-      const blob = await generateResponse.blob();
-      // const url = URL.createObjectURL(blob);
+  //     const blob = await generateResponse.blob();
+  //     // const url = URL.createObjectURL(blob);
 
-      return blob;
-    }
+  //     return blob;
+  //   }
 
-  public async generateImageAsync(accessToken: string, options: ImageGenerationOptions): Promise<string>  {
+  public async startImageJob(accessToken: string, options: ImageGenerationOptions): Promise<string>  {
 
       
       //const { prompt, model_id } = options;
 
-      const modelUrl = `${VITE_BASE_URL}start-job`;
+      const modelUrl = `${VITE_BASE_URL}/job`;
 
       const generateResponse = await fetch(modelUrl, {
         method: 'POST',

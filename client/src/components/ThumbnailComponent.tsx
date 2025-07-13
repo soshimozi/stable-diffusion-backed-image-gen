@@ -1,4 +1,4 @@
-import { Box, CircularProgress, IconButton, Tooltip } from "@mui/material";
+import { Box, CircularProgress, IconButton, Tooltip, useTheme } from "@mui/material";
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
 import React, { useState } from "react";
@@ -16,6 +16,7 @@ export interface ThumbnailComponentProps {
 
 export const ThumbnailComponent : React.FC<ThumbnailComponentProps> = ({thumb, index, setOpenImage, loading, hasError}) => {
   const [hovered, setHovered] = useState(false);
+  const theme = useTheme();
 
   if(loading) {
     return (
@@ -59,7 +60,7 @@ export const ThumbnailComponent : React.FC<ThumbnailComponentProps> = ({thumb, i
         alignItems="center"
         height="100%"
       >
-        <BrokenImageIcon sx={{fontSize: "40px", color: "#ee2323"}} />
+        <BrokenImageIcon sx={{fontSize: "40px", color: theme.palette.error.dark}} />
       </Box>          
     </Box> 
     )
