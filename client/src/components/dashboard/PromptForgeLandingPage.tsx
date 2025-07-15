@@ -6,12 +6,13 @@ import TuneIcon from "@mui/icons-material/Tune";
 import FlashOnIcon from "@mui/icons-material/FlashOn";
 import Grid from '@mui/material/GridLegacy';
 import { useNavigate } from "react-router";
+import logo from "../../assets/logo.png";
 
 const PromptForgeLandingPage: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <Container maxWidth="lg" sx={{ py: 6 }}>
+    <Container maxWidth="lg" sx={{ py: 6}}>
       {/* Headline */}
       <Box textAlign="center" mb={6}>
         <Typography variant="h4" fontWeight="bold" gutterBottom>

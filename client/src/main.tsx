@@ -34,12 +34,15 @@ const applicationTheme: Theme = createTheme(applicationThemeOptions);
 const config = {
   domain: import.meta.env.VITE_AUTH0_DOMAIN ?? "",
   clientId: import.meta.env.VITE_OKTA_CLIENT_ID ?? "",
-  authorizationParamters: {
+  authorizationParams: {
     redirect_uri: window.location.origin,
     audience: import.meta.env.VITE_OKTA_AUDIENCE,
     scope: "read:models create:image openid profile email"      
   }
 }
+
+console.log('config: ', config);
+
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
       <Auth0Provider {...config}>

@@ -8,4 +8,5 @@ MODEL_REGISTRY = {
     "super-realism": "SuperRealismArtGenerator",
     "iso": "Isometric3DGenerator",
     "sdxl-base": "SDXLBaseGenerator",
+    "proteusv0.2": "ProteusGenerator"
 }

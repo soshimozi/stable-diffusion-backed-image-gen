@@ -20,6 +20,8 @@ class ModelInfo(BaseModel):
     tags: List[str]
     trigger_word: str | None
     image_data: str
+    negative_available: bool
+    model_url: str | None
     
 class ImageRequest(BaseModel):
     prompt: str
@@ -28,8 +30,9 @@ class ImageRequest(BaseModel):
     width: int | None = 1024
     iterations: int | None = 50
     guidance: float | None = 3.5
-    seed: float | None = None
-    numberImages: int | None = 1
+    seed: int | None = None
+    num_images: int | None = 1
+    negative_prompt: str | None = None
 
 
 class ModelData(Base):
@@ -42,6 +45,8 @@ class ModelData(Base):
     available = Column(Boolean)
     trigger_word = Column(String)
     tags = Column(String)
+    negative_available = Column(Boolean)
+    model_url = Column(String)
 
 
 class UserProfile(Base):
@@ -50,9 +55,11 @@ class UserProfile(Base):
     id = Column(Integer, primary_key=True)
     user_name = Column(String)
     selected_model = Column(String)  # Adjust columns as needed
+    token_count = Column(Integer)
 
 class UserProfileResponse(BaseModel):
-    selected_model: str
+    selected_model: str | None
+    token_count: int
 
 
 frontend_path = Path(__file__).parent / "images"
@@ -71,19 +78,16 @@ web_image = (
 )
 
 with web_image.imports():
-    from typing import Optional
-    from fastapi import FastAPI, Request, Depends, HTTPException
-    from fastapi.responses import FileResponse, Response
+    from fastapi import Request, Depends, HTTPException
+    from fastapi.responses import Response
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
     from typing import List
     from jose import jwt, JWTError
     import requests
     import base64
     from fastapi import Depends, HTTPException
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker, declarative_base
-    from sqlalchemy import Column, String, select
-    from typing import Optional    
+    from sqlalchemy.orm import declarative_base
+    from sqlalchemy import Column, String
 
 
 
@@ -97,6 +101,7 @@ MODEL_REGISTRY = {
     "super-realism": "SuperRealismArtGenerator",
     "iso": "Isometric3DGenerator",
     "sdxl-base": "SDXLBaseGenerator",
+    "proteusv0.2": "ProteusGenerator"
 }
 
 
@@ -108,16 +113,12 @@ MODEL_REGISTRY = {
 @modal.concurrent(max_inputs=1000)
 @modal.asgi_app()
 def ui():
-    import fastapi.staticfiles
     from fastapi import FastAPI
-    from fastapi.responses import FileResponse
     from fastapi.responses import JSONResponse
     from fastapi.middleware.cors import CORSMiddleware
     from sqlalchemy.engine import URL
     import os
-    import re
-    from sqlalchemy import text
-    from sqlalchemy.ext.asyncio import create_async_engine
+    from sqlalchemy import insert, select
 
 
     # === JWT AUTH CONFIG ===
@@ -126,6 +127,9 @@ def ui():
     ALGORITHMS = ["RS256"]
     JWKS_URL = f"https://{AUTH0_DOMAIN}/.well-known/jwks.json"
     ORIGINS = os.environ["ORIGINS"]
+
+
+    engine = create_engine(os.getenv('DATABASE_URL'), echo=True)
 
     web_app = FastAPI()
 
@@ -136,15 +140,6 @@ def ui():
         allow_methods=["*"],
         allow_headers=["*"],
     )    
-    
-    url = URL.create(
-        drivername="postgresql",
-        username="neondb_owner",
-        password="npg_gsZd2Jezp0LT",
-        host="localhost",
-        database="mydb",
-        port=5432
-    )
 
     # --- AUTH DEPENDENCY ---
     class JWTBearer(HTTPBearer):
@@ -192,38 +187,38 @@ def ui():
 
     @web_app.get("/me", response_model=UserProfileResponse)
     async def get_profile(payload=Depends(JWTBearer())):
-        email = payload.get("sub")
-        if not email:
-            raise HTTPException(status_code=400, detail="Email not found in token")
+        subject = payload.get("sub")
+        if not subject:
+            raise HTTPException(status_code=400, detail="Subject not found in token")
         
-        engine = create_engine(os.getenv('DATABASE_URL'), echo=True)
+        with engine.begin() as conn:
+            row = conn.execute(
+                select(UserProfile.user_name, UserProfile.token_count, UserProfile.selected_model)
+                .where(UserProfile.user_name == subject)
+            ).first()
 
-        #engine = create_async_engine(re.sub(r'^postgresql:', 'postgresql+asyncpg:', os.getenv('DATABASE_URL')), echo=True)
-        with engine.connect() as conn:
-            result = conn.execute(select(UserProfile).where(UserProfile.user_name == email))
-            print(result.scalar_one_or_none())
-        engine.dispose()        
+            if row:
+                # row = (user_name, token_count, selected_model)
+                return UserProfileResponse(token_count=row[1], selected_model=row[2])
 
-        return UserProfileResponse(selected_model="it works!")
-        # email = payload.get("email")
-        # if not email:
-        #     raise HTTPException(status_code=400, detail="Email not found in token")
+            # no existing profile → INSERT
+            conn.execute(
+                insert(UserProfile).values(
+                    user_name=subject,
+                    token_count=100,
+                    selected_model=None,
+                )
+            )
 
-        # result = await db.execute(select(UserProfile).where(UserProfile.email == email))
-        # record = result.scalar_one_or_none()
+        # engine.begin() auto-commits here
+        return UserProfileResponse(token_count=100, selected_model=None)      
 
-        # if not record:
-        #     raise HTTPException(status_code=404, detail="No data found for this user")
-
-        # return UserProfileResponse(selected_model=record.selected_model)
 
     @web_app.get("/model", response_model=List[ModelInfo], dependencies=[Depends(JWTBearer())])
     async def list_models():
         engine = create_engine(os.getenv('DATABASE_URL'), echo=True)
 
-        #engine = create_async_engine(re.sub(r'^postgresql:', 'postgresql+asyncpg:', os.getenv('DATABASE_URL')), echo=True)
         database_models = []
-
 
         with engine.connect() as conn:
             result = conn.execute(select(ModelData))
@@ -239,7 +234,9 @@ def ui():
                 "available": db_model.available,
                 "tags": db_model.tags.split(','),
                 "trigger_word": db_model.trigger_word,
-                "image_data": ""
+                "image_data": "",
+                "negative_available": db_model.negative_available,
+                "model_url": db_model.model_url
             }
 
             image_path = os.path.join(STATIC_DIR, db_model.icon_url.lstrip("/"))
@@ -260,8 +257,6 @@ def ui():
     async def start_image_job(request: ImageRequest):
         
         model_id = request.model_id
-        prompt = request.prompt
-
         if request.model_id not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model: {model_id}")
         
@@ -278,10 +273,13 @@ def ui():
         image_job = modal.FunctionCall.from_id(job_id)
 
         try:
-            result = image_job.get(timeout=0)
+            b64_list  = image_job.get(timeout=0)
         except TimeoutError:
             return JSONResponse(content="", status_code=202)
 
-        return Response(content=result, media_type="image/png")
+        # Convert each bytes object to list of ints so it’s JSON‐serializable
+        #images_as_int_lists = [list(img_bytes) for img_bytes in result]
+        #return JSONResponse(content={"images": images_as_int_lists})
+        return JSONResponse({"images": b64_list})
     
     return web_app

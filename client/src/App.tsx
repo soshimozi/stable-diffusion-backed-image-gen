@@ -18,67 +18,67 @@ import { actions } from './store/actions'
 
 function App() {
 
-  const { isLoading, getAccessTokenSilently} = useAuth0();
+  const { isLoading } = useAuth0();
 
-  const { VITE_BASE_URL } = import.meta.env;
+  // // const { VITE_BASE_URL } = import.meta.env;
 
-  const modelsService = new ModelsService();
-  const models = useTypedSelector((state) => state.model.modelList)
+  // // const modelsService = new ModelsService();
+  // // const models = useTypedSelector((state) => state.model.modelList)
 
-  const [dataLoading, setDataLoading] = useState(false);
-  const [error, setError] = useState<string | undefined>(undefined);
+  // // const [dataLoading, setDataLoading] = useState(false);
+  // // const [error, setError] = useState<string | undefined>(undefined);
 
-  useEffect(() => {
+  // // useEffect(() => {
 
-    if(dataLoading || isLoading || models.length > 0 || error) return;
+  // //   if(dataLoading || isLoading || models.length > 0 || error) return;
 
-    setDataLoading(true);
+  // //   setDataLoading(true);
 
-    (async() => {
+  // //   (async() => {
 
-      try {
+  // //     try {
 
-        const accessToken = await getAccessTokenSilently({
-          authorizationParams: {
-            audience: `https://promptforge/api`,
-            scope: "read:models",
-          },
-        });
+  // //       const accessToken = await getAccessTokenSilently({
+  // //         authorizationParams: {
+  // //           audience: `https://promptforge/api`,
+  // //           scope: "read:models",
+  // //         },
+  // //       });
 
-        dispatch(actions.appState.setToken(accessToken));
+  // //       dispatch(actions.appState.setToken(accessToken));
 
-        const modelList = await modelsService.getModels(accessToken);
+  // //       const modelList = await modelsService.getModels(accessToken);
 
-        const profileResponse = await fetch(`${VITE_BASE_URL}/me`, 
-          {
-            headers: {
-              Authorization: `Bearer ${accessToken}`,
-            },          
-          }
-        )
+  // //       const profileResponse = await fetch(`${VITE_BASE_URL}/me`, 
+  // //         {
+  // //           headers: {
+  // //             Authorization: `Bearer ${accessToken}`,
+  // //           },          
+  // //         }
+  // //       )
 
-        let selectedModel;
-        if(profileResponse.status === 200) {
-          console.log('profile: ', await profileResponse.json())
-        }
+  // //       let selectedModel;
+  // //       if(profileResponse.status === 200) {
+  // //         console.log('profile: ', await profileResponse.json())
+  // //       }
 
-        dispatch(actions.models.setModels(modelList));
-        dispatch(actions.models.setModel(selectedModel || modelList[0]));
+  // //       dispatch(actions.models.setModels(modelList));
+  // //       dispatch(actions.models.setModel(selectedModel || modelList[0]));
 
-      } catch (e: any) {
-        console.error(e.message);
-        setError(e.message);
-      }
-      finally {
-        setDataLoading(false);
-      }
+  // //     } catch (e: any) {
+  // //       console.error(e.message);
+  // //       setError(e.message);
+  // //     }
+  // //     finally {
+  // //       setDataLoading(false);
+  // //     }
 
-    })();
+  // //   })();
 
-  }, [models, dataLoading, isLoading, error]);
+  // // }, [models, dataLoading, isLoading, error]);
 
 
-  if(isLoading || dataLoading) return (
+  if(isLoading) return (
     <Loader />
   )
   

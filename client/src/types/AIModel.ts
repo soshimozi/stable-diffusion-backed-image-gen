@@ -6,4 +6,6 @@ export interface AIModel  {
   trigger_word: string;
   available: boolean;
   tags: string[];
+  negative_available: boolean;
+  model_url: string;
 };

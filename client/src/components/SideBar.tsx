@@ -1,4 +1,4 @@
-import { Box, Typography, Tooltip, TextField, styled, MenuItem, InputLabel, Slider, type SliderValueLabelProps, Button } from "@mui/material";
+import { Box, Typography, Tooltip, TextField, styled, MenuItem, InputLabel, Slider, type SliderValueLabelProps, Button, Stack } from "@mui/material";
 import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAccordion, { type AccordionProps } from '@mui/material/Accordion';
@@ -32,6 +32,11 @@ export interface SideBarProps {
   imageHeight: string;
   selectedModel: AIModel;
   modelExpanded: boolean;
+  aspectRatio: string;
+  ratioLocked: boolean;
+  negative?: string;
+  onNegativeChange: (negative: string) => void;
+  onRatioLockClick: () => void;
   onModelExpanded: (expanded:boolean) => void;
   promptExpanded: boolean;
   onPromptExpanded: (expanded: boolean) => void;
@@ -39,6 +44,7 @@ export interface SideBarProps {
   onOutputSizeExpanded: (expanded: boolean) => void;
   advancedSettingsExpanded: boolean;
   onAdvancedSettingsExpanded: (expanded: boolean) => void;
+  onAspectRatioChanged: (ratio: string) => void;
 
 }
 
@@ -65,16 +71,16 @@ const AccordionSummary = styled((props: AccordionSummaryProps) => (
       transform: 'rotate(90deg)',
     },
   [`& .${accordionSummaryClasses.content}`]: {
-    marginLeft: theme.spacing(1),
+    marginLeft: 0,
   },
 }));
 
 const AccordionDetails = styled(MuiAccordionDetails)(({ theme }) => ({
-  padding: theme.spacing(2),
+  padding: theme.spacing("20px"),
   marginTop: theme.spacing(-2)
 }));
 
-function ValueLabelComponent(props: SliderValueLabelProps) {
+export function ValueLabelComponent(props: SliderValueLabelProps) {
   const { children, value } = props;
 
   return (
@@ -94,22 +100,28 @@ export const SideBar: React.FC<SideBarProps> = ({
   onImageWidthChange, 
   onImageHeightChange, 
   onChangeModelClick,
+  onAspectRatioChanged,
+  onRatioLockClick,
   onModelExpanded,
   onPromptExpanded,
   onOutputSizeExpanded,
   onAdvancedSettingsExpanded,
+  onNegativeChange,
   prompt, 
   imageWidth, 
   imageHeight, 
   selectedModel, 
+  aspectRatio,
   modelExpanded,
   promptExpanded,
   outputSizeExpanded,
-  advancedSettingsExpanded
+  advancedSettingsExpanded,
+  ratioLocked,
+  negative
   
   }) => {
-  const [aspectRatio, setAspectRatio] = useState("");
-  const [ratioLocked, setRatioLocked] = useState(true);
+  //const [aspectRatio, setAspectRatio] = useState("");
+  //const [ratioLocked, setRatioLocked] = useState(true);
 
 
   const navigate = useNavigate();
@@ -182,7 +194,7 @@ export const SideBar: React.FC<SideBarProps> = ({
         break;
     }
     
-    setAspectRatio(value)
+    onAspectRatioChanged(value)
   }
 
   function changeImageWidth(value: string) {
@@ -207,7 +219,7 @@ export const SideBar: React.FC<SideBarProps> = ({
     } else {
       onImageWidthChange(value)
       // change to default
-      setAspectRatio("");
+      onAspectRatioChanged("");
     }
 
   }
@@ -234,7 +246,7 @@ export const SideBar: React.FC<SideBarProps> = ({
     } else {
       onImageHeightChange(value);
       // change to default
-      setAspectRatio("");
+      onAspectRatioChanged("");
     }
 
   }
@@ -252,7 +264,7 @@ export const SideBar: React.FC<SideBarProps> = ({
             id="panel4bh-header"
             
           >
-              <Typography component="span" sx={{ width: '100%', flexShrink: 1 }}>
+              <Typography variant="button"  sx={{ width: '100%', flexShrink: 1 }}>
                 Model
               </Typography>
             
@@ -301,7 +313,7 @@ export const SideBar: React.FC<SideBarProps> = ({
             id="panel1bh-header"
           >
             <Box display={"flex"} flexDirection={"row"}>
-              <Typography component="span" sx={{ width: '100%', flexShrink: 1 }}>
+              <Typography variant="button"  sx={{ width: '100%', flexShrink: 1 }}>
                 Prompt
               </Typography>
               <HoverTooltip content={
@@ -331,16 +343,44 @@ export const SideBar: React.FC<SideBarProps> = ({
           </AccordionSummary>
           <AccordionDetails>
           <Box sx={{ width: "100%" }}>
-            <TextField
-              rows={4}
-              value={prompt}
-              placeholder="e.g. A dog playing with a ball.  All languages are supported."
-              multiline
-              fullWidth
-              onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-                onPromptChange(event.target.value);
-              }}
-            />
+            <Box sx={{display: "flex", flexDirection: "column", gap: "12px"}}>
+              <TextField
+                rows={4}
+                value={prompt}
+                placeholder="e.g. A dog playing with a ball.  All languages are supported."
+                multiline
+                fullWidth
+                onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+                  onPromptChange(event.target.value);
+                }}
+              />
+              {selectedModel.negative_available && (
+                <Box sx={{display: "flex", flexDirection: "column", gap: "4px"}}>
+                <Box sx={{display: "flex", flexDirection: "row", gap: "1px"}}>
+                    <Typography variant="button">
+                      Negative Prompt
+                    </Typography>
+                    <HoverTooltip content={
+                      <Box>
+                          <Typography variant="subtitle1">The description of what you don't want to see in the image.</Typography>
+                      </Box>
+                    } placement="right">
+                      {({ onMouseEnter, onMouseLeave }) => (
+                        <HoverButtonInfo
+                          onMouseOver={onMouseEnter}
+                          onMouseOut={onMouseLeave}
+                        />
+                      )}
+                    </HoverTooltip>                
+                </Box>
+                <TextField
+                  placeholder="Anything you want to exclude?"
+                  fullWidth
+                />
+
+                </Box>
+              )}
+            </Box>
           </Box>              
           </AccordionDetails>
         </Accordion>          
@@ -354,7 +394,7 @@ export const SideBar: React.FC<SideBarProps> = ({
             aria-controls="panel2bh-content"
             id="panel2bh-header"
           >
-            <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+            <Typography variant="button" sx={{ width: '100%', flexShrink: 0 }}>
               Output Size
             </Typography>
           </AccordionSummary>
@@ -421,7 +461,7 @@ export const SideBar: React.FC<SideBarProps> = ({
                     </Select>
                   </FormControl>
                   {aspectRatio !== "" && (
-                  <Box sx={{padding: "4px", background: ratioLocked ? "rgba(13, 153, 255, 0.1)" : "transparent", borderRadius: "4px", display: "flex", alignItems: "center", cursor: "pointer"}} onClick={() => setRatioLocked(!ratioLocked)}>
+                  <Box sx={{padding: "4px", background: ratioLocked ? "rgba(13, 153, 255, 0.1)" : "transparent", borderRadius: "4px", display: "flex", alignItems: "center", cursor: "pointer"}} onClick={onRatioLockClick}>
                     {ratioLocked ? (
                       <LockOutlineIcon sx={{color: "rgb(13, 153, 255)", size: "12px"}} />
                     ) : <LockOpenIcon  />}
@@ -429,21 +469,21 @@ export const SideBar: React.FC<SideBarProps> = ({
                   )}
                 </Box>
               </Box>
-              <Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: "16px"}}>
+              <Box sx={{ width: "100%"}}>
+                  <Stack spacing={2} direction="row" sx={{ alignItems: "center", mb: 1}}>
                 <Typography sx={{width: "50px"}}>Width</Typography>
-                <Slider
-                  value={parseInt(imageWidth)}
-                  valueLabelDisplay="auto"
-                  slots={{
-                    valueLabel: ValueLabelComponent,
-                  }}
-                  aria-label="custom thumb label"
-                  min={1}
-                  max={MAX_WIDTH}
-                  defaultValue={MAX_WIDTH}
-                  sx={{maxWidth: "120px", flexGrow: "1 1 auto"}}
-                  onChange={(e, v) => changeImageWidth(v.toString())}
-                />                
+                  <Slider
+                    value={parseInt(imageWidth)}
+                    valueLabelDisplay="auto"
+                    slots={{
+                      valueLabel: ValueLabelComponent,
+                    }}
+                    aria-label="custom thumb label"
+                    min={1}
+                    max={MAX_WIDTH}
+                    defaultValue={MAX_WIDTH}
+                    onChange={(e, v) => changeImageWidth(v.toString())}
+                  />                
                 <TextField variant="outlined" value={imageWidth} sx={{maxWidth: "80px"}}
                   onChange={(e) => {
                     
@@ -461,9 +501,11 @@ export const SideBar: React.FC<SideBarProps> = ({
                   }}
 
                   size="small" />
-
-              </Box>
-              <Box sx={{display: "flex", flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: "16px"}}>
+                  </Stack>
+                
+              </Box>              
+              <Box sx={{ width: "100%"}}>
+                  <Stack spacing={2} direction="row" sx={{ alignItems: "center", mb: 1}}>
                 <Typography sx={{width: "50px"}}>Height</Typography>
                 <Slider
                   value={parseInt(imageHeight)}
@@ -475,7 +517,6 @@ export const SideBar: React.FC<SideBarProps> = ({
                   defaultValue={MAX_HEIGHT}
                   min={1}
                   max={MAX_HEIGHT}
-                  sx={{maxWidth: "120px", flexGrow: "1 1 auto"}}
                   onChange={(e, v) => changeImageHeight(v.toString())}
 
                 />                
@@ -496,7 +537,7 @@ export const SideBar: React.FC<SideBarProps> = ({
                   }}
 
                   size="small" />
-
+                </Stack>
               </Box>
             </Box>
           </AccordionDetails>
@@ -511,12 +552,12 @@ export const SideBar: React.FC<SideBarProps> = ({
             aria-controls="panel3bh-content"
             id="panel3bh-header"
           >
-            <Typography component="span" sx={{ width: '100%', flexShrink: 0 }}>
+            <Typography variant="button"  sx={{ width: '100%', flexShrink: 0 }}>
               Advanced Settings
             </Typography>
           </AccordionSummary>
           <AccordionDetails>
-            <Box sx={{height: "400px"}}>
+            <Box>
             Details Comming!
             </Box>
           </AccordionDetails>

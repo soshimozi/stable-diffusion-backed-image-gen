@@ -9,6 +9,9 @@ export type ImageGenerationOptions = {
   width?: number;
   iterations?: number;
   guidance?: number;
+  negative_prompt?: string;
+  seed?: number;
+  num_images?: number;
   /* TODO: add other parameters here */
 }
 

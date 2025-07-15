@@ -72,11 +72,6 @@ const menu = [
     icon: <ImageIcon />
   },
   {
-    to: "/models",
-    primary: "Models",
-    icon: <ModelTrainingIcon />
-  },
-  {
     to: "/workspace",
     primary: "Workspace",
     icon: <WorkspacesIcon />

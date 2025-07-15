@@ -1,4 +1,4 @@
 export interface UserProfile {
-  email: string;
-  selectedModelId: string | undefined;
+  selected_model: string | undefined;
+  token_count: number | undefined;
 }

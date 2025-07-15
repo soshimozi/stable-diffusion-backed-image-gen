@@ -10,6 +10,7 @@ import { useTypedSelector } from "../../store/hooks";
 import { dispatch } from "../../store/store";
 import { actions } from "../../store/actions";
 import type { UserProfile } from "../../types/UserProfile";
+import type { AIModel } from "../../types/AIModel";
 
 
 const { VITE_BASE_URL } = import.meta.env;
@@ -21,6 +22,7 @@ const AppLayout: React.FC = () => {
 
   const modelsService = new ModelsService();
   const models = useTypedSelector((state) => state.model.modelList)
+  const accessToken = useTypedSelector((state) => state.appState.token);
 
   const [dataLoading, setDataLoading] = useState(false);
   const [error, setError] = useState<string | undefined>(undefined);
@@ -85,6 +87,71 @@ const AppLayout: React.FC = () => {
   // if(isLoading || dataLoading) return (
   //   <Loader />
   // )
+
+  const { isLoading, getAccessTokenSilently} = useAuth0();
+
+  const { VITE_BASE_URL } = import.meta.env;
+
+  useEffect(() => {
+
+    if(dataLoading || isLoading || models.length > 0 || error) return;
+
+    setDataLoading(true);
+
+    (async() => {
+
+      try {
+        let token = accessToken;
+        if(!accessToken) {
+          token = await getAccessTokenSilently({
+            authorizationParams: {
+              audience: `https://promptforge/api`,
+              scope: "read:models",
+            },
+          });
+
+          dispatch(actions.appState.setToken(token));
+        }
+        
+
+        const modelList = await modelsService.getModels(token);
+
+        const profileResponse = await fetch(`${VITE_BASE_URL}/me`, 
+          {
+            headers: {
+              Authorization: `Bearer ${token}`,
+            },          
+          }
+        )
+
+        let selectedModel: AIModel | undefined = undefined;
+        if(profileResponse.status === 200) {
+          const profile = await profileResponse.json() as UserProfile;
+          const selectedModelId = profile.selected_model;
+
+          selectedModel = modelList.find((m) => m.id === selectedModelId);
+        }
+
+        
+        dispatch(actions.models.setModels(modelList));
+        dispatch(actions.models.setModel(selectedModel || modelList[0]));
+
+        setDataLoading(false);
+
+      } catch (e: any) {
+        console.error(e.message);
+        setDataLoading(false);
+        setError(e.message);
+      }
+
+    })();
+
+  }, []);
+
+
+  if(isLoading || dataLoading) return (
+    <Loader />
+  )  
 
   return (
     <Box sx={{ display: "flex" }}>
