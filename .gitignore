@@ -135,6 +135,7 @@ celerybeat.pid
 *.sage.py
 
 # Environments
+.env.production
 .env
 .envrc
 .venv
@@ -210,3 +211,6 @@ __marimo__/
 .model-cache/
 
 client/node_modules
+
+
+dist/

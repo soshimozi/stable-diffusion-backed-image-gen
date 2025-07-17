@@ -7,8 +7,8 @@ export const Loader: React.FC = () => {
       display="flex"
       justifyContent="center"
       alignItems="center"
-      height="100vh" // full viewport height
-      width="100vw" // optional: ensures full viewport width
+      height="90vh" // full viewport height
+      width="100%" // optional: ensures full viewport width
     >
       <span className="loader"></span>
     </Box>    

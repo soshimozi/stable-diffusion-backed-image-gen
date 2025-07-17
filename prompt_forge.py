@@ -43,7 +43,7 @@ with gpu_image.imports():
     
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -78,7 +78,7 @@ class SDXLTurboGenerator:
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -117,7 +117,7 @@ class FluxGhibliArtGenerator:
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -157,7 +157,7 @@ class Isometric3DGenerator:
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -196,7 +196,7 @@ class SuperRealismArtGenerator:
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -237,7 +237,7 @@ class AnimeArtGenerator:
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -293,6 +293,24 @@ class StableDiffusionGenerator:
     ) -> list[bytes]:
         
         num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
 
         seed = request.get("seed", None)
         if seed is not None:
@@ -305,9 +323,12 @@ class StableDiffusionGenerator:
 
         outputs = self.pipe(
             prompt=request["prompt"],
-            num_inference_steps=request.get("iterations", 75),
-            guidance_scale=request.get("guidance", 3.5),
-            num_images_per_prompt=num_images
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=2,
+            width=1024,
+            height=1024,
+            # **generator_arg,  
         )
 
         data_urls = []
@@ -326,7 +347,7 @@ class StableDiffusionGenerator:
      
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
@@ -360,7 +381,7 @@ class FluxGenerator:
     
 @app.cls(
     image=gpu_image, 
-    gpu="A100",     
+    gpu="A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
     secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var

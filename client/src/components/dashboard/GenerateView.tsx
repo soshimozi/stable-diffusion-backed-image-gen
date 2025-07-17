@@ -1,18 +1,18 @@
-import { useAuth0 } from "@auth0/auth0-react";
 import { Box, Button, CircularProgress, IconButton, Modal, Slider, TextField, Typography } from "@mui/material";
 import { useEffect, useState } from "react";
 import { useTypedSelector } from "../../store/hooks";
-import type { Thumbnail } from "../../types/Thumbnail";
+import type { ThumbnailData } from "../../types/ThumbnailData";
 import CloseIcon from "@mui/icons-material/Close";
 import { useLocation } from "react-router-dom";
 import { ThumbnailComponent } from "../ThumbnailComponent";
-import { type ImageSettings } from "../../types/Settings";
-import { ImageService, type ImageGenerationOptions } from "../../services/ImageService";
+import { ImageService } from "../../services/ImageService";
 import { SideBar, ValueLabelComponent } from "../SideBar";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ModelView } from "../ModelView";
 import { dispatch } from "../../store/store";
 import { actions } from "../../store/actions";
+import { useQuery } from "@tanstack/react-query";
+import { ModelsService } from "../../services/ModelsService";
 
 type GenerateViewState = {
   prompt: string;
@@ -23,23 +23,13 @@ export const GenerateView : React.FC = () => {
 
   const selectedModel = useTypedSelector((state) => state.model.selectedModel);
   
-  const DEFAULT_SETTINGS:ImageSettings = {
-    height: 1024,
-    width: 1024,
-    guidance: 3,
-    steps: 28
-  }
-
   const [loading, setLoading] = useState<boolean>(false);
-  const [thumbnails, setThumbnails] = useState<Thumbnail[]>([])
+  const [thumbnails, setThumbnails] = useState<ThumbnailData[]>([])
   const [openImage, setOpenImage] = useState<string | null>(null);  
   
   const location = useLocation();
   const defaultPrompt = (location.state as GenerateViewState)?.prompt || ""; // Accessing state data
   const [prompt, setPrompt] = useState(defaultPrompt);
-  const [imageSettings, setImageSettings] = useState<ImageSettings>(DEFAULT_SETTINGS);
-  //const [callId, setCallId] = useState<string | null>(null);
-  const [lastThumbnail, setLastThumbnail] = useState<Thumbnail | null>(null);
   const [numberImages, setNumberImages] = useState("1");
   const [cost, setCost] = useState<number>(0);
   const [imageWidth, setImageWidth] = useState("1440");
@@ -52,11 +42,19 @@ export const GenerateView : React.FC = () => {
   const [aspectRatio, setAspectRatio] = useState("");
   const [ratioLocked, setRatioLocked] = useState(false);
   const [negative, setNegative] = useState<string | undefined>()
-  const [polling, setPolling] = useState(false);
+  const [loadingImages, setLoadingImages] = useState<string[]>([])
+
+  const modelsService = new ModelsService();
 
   const accessToken = useTypedSelector((state) => state.appState.token);
-  const models = useTypedSelector((state) => state.model.modelList);
+  //const models = useTypedSelector((state) => state.model.modelList);
+
+  const { data: models, isLoading: dataLoading } = useQuery({
+    queryKey: ['models'],
+    queryFn: () => modelsService.getModels(accessToken!)
+  });  
   
+
   useEffect(() => {
     
     setCost(parseInt(numberImages) * 5);
@@ -64,8 +62,6 @@ export const GenerateView : React.FC = () => {
   }, [numberImages])
 
   function startJobPolling(jobId: string) {
-
-    console.log("startJobPolling");
 
     let complete = false;
 
@@ -104,23 +100,28 @@ export const GenerateView : React.FC = () => {
           // or we will save the image to the database when generating
           // this queue/registry will be part of redux state
 
-          const thumbs:Thumbnail[] = [];
+          const thumbs:ThumbnailData[] = [];
 
           const { images } = await response.json() as { images: string[] };
+
+
           images.forEach((b64) => {
             // simplest: data-URL directly on <img>
             const src = `data:image/png;base64,${b64}`;
 
-            const th:Thumbnail = {
+            // TODO: get image settings from queued request
+            // key request dictionary by job id - that way we can look up the request from the request dictionary by job id
+
+            const th:ThumbnailData = {
               url: src,
               prompt: prompt,
               model: selectedModel?.id ?? "",
               settings: {
-                height: imageSettings.height,
-                width: imageSettings.width,
-                guidance: imageSettings.guidance,
-                seed: imageSettings.seed,
-                steps: imageSettings.steps
+                height: parseInt(imageHeight),
+                width: parseInt(imageWidth),
+                //guidance: imageSettings.guidance,
+                //seed: imageSettings.seed,
+                //steps: imageSettings.steps
               },
               loading: false,
               hasError: false
@@ -131,19 +132,12 @@ export const GenerateView : React.FC = () => {
 
           console.log('thumbs: ', thumbs);
 
+          setLoadingImages([]);
+
           // remove the loader (s) and update with new thumbs
           setThumbnails((state) => {
-            return [ ...thumbs, ...state.slice(parseInt(numberImages))];
+            return [ ...thumbs, ...state];
           });
-
-
-          // const blob = await response.blob();
-
-          // const url = URL.createObjectURL(blob);
-
-          // if(lastThumbnail) {
-          //   updateThumbnail({ ...lastThumbnail, url, loading: false});          
-          // }
 
 
         } else {
@@ -152,56 +146,15 @@ export const GenerateView : React.FC = () => {
       } catch (error) {
 
         console.error("Error polling results:", error);
+        
+        setLoadingImages([]);
 
-        // if(lastThumbnail) {
-        //   updateThumbnail({ ...lastThumbnail, loading: false, hasError: true});          
-        // }
-
-        setPolling(false);
         clearInterval(pollInterval);
-        //setCallId(null);
       }
-
       
     }, 1000);
   }
 
-  //   return () => clearInterval(pollInterval);
-  // }, [callId]);  
-
-  const updateThumbnail = (th: Thumbnail) => {
-
-      setThumbnails((prev) => {
-        if (prev.length === 0) return prev; // no-op if empty
-
-        const updated = [...prev];
-        updated[prev.length - 1] = th;
-        return updated;      
-      });
-
-  }
-
-  const createThumbnail = () => {
-    setThumbnails((state) => {
-
-      const th:Thumbnail = {
-        url: "",
-        prompt: "",
-        model: "",
-        settings: {
-          height: imageSettings.height,
-          width: imageSettings.width,
-          guidance: imageSettings.guidance,
-          seed: imageSettings.seed,
-          steps: imageSettings.steps
-        },
-        loading: true,
-        hasError: false
-      }
-      return [...state, th];
-
-    });
-  }
 
   const requestImageJob = async () => {
 
@@ -211,32 +164,41 @@ export const GenerateView : React.FC = () => {
     const fullPrompt = triggerWord + prompt;
     const model_id =  selectedModel?.id || "flux"
 
-    // add a new thumbnail
-    const thumbnails:Thumbnail[] = []
-    for(var i = 0; i < parseInt(numberImages); i++) {
-
-      const th: Thumbnail = {
-        url:"",
-        prompt,
-        model: model_id,
-        loading: true,
-        settings: {
-          ...imageSettings
-        },
-        hasError: false
-      };
-
-      thumbnails.push(th);
-    }
-
-    setThumbnails((state) => {
-      return [...thumbnails, ...state];
-    })
-
-    
     try {
-      const result = await imageService.startImageJob(accessToken, { prompt: fullPrompt, model_id: model_id, width: parseInt(imageWidth), height: parseInt(imageHeight), negative_prompt: negative, num_images: parseInt(numberImages) })
-      startJobPolling(result);
+      const jobId:string = await imageService.startImageJob(accessToken, 
+        { 
+          prompt: fullPrompt, 
+          model_id: model_id, 
+          width: parseInt(imageWidth), 
+          height: parseInt(imageHeight), 
+          negative_prompt: negative, 
+          num_images: parseInt(numberImages), 
+          guidance: 3.0,
+          iterations: 75
+        })
+      startJobPolling(jobId);
+
+      // add loading images
+      const jobIds:string[] = []
+      for(var i = 0; i < parseInt(numberImages); i++) {
+
+        jobIds.push(jobId);
+
+      // const th: ThumbnailData = {
+      //   url:"",
+      //   prompt,
+      //   model: model_id,
+      //   loading: true,
+      //   hasError: false
+      // };
+
+      // thumbnails.push(th);
+      }
+
+      setLoadingImages((_) => {
+        return [...jobIds];
+      })
+
       //setCallId(result);
     }
     catch (e) {
@@ -251,7 +213,6 @@ export const GenerateView : React.FC = () => {
     } finally {
       setLoading(false);
     }      
-
   };  
 
   if(showSelectModelView) {
@@ -269,21 +230,27 @@ export const GenerateView : React.FC = () => {
             width: "100%",
             gap: 1,
           }}>
-            {models.map((model, index) => {
+            {models?.map((model, index) => {
+
 
               if(!model.available) return null;
+
+              //const selected = (model.id === (selectedModel ? selectedModel.id : (models ? models[0] : -1)));
+
+              const currentModel = (selectedModel ? selectedModel : (models ? models[0] : undefined));
+
+              console.log('selectedModelId: ', currentModel);
 
               return (
 
                 <ModelView 
                   key={index} 
                   name={model.name} 
-                  description={model.description} 
                   image={model.image_data} 
                   tags={model.tags} 
                   model_url={model.model_url}
                   onClick={() => { dispatch(actions.models.setModel(model)); setShowSelectModelView(false); }} 
-                  selected={model.id === selectedModel?.id} 
+                  selected={model.id === currentModel?.id} 
                 />
               )
             })}
@@ -327,6 +294,7 @@ export const GenerateView : React.FC = () => {
                 onImageWidthChange={setImageWidth} 
                 promptExpanded={promptExpanded}
                 modelExpanded={modelExpanded}
+                dataLoading={dataLoading}
                 advancedSettingsExpanded={advancedSettingsExpanded}
                 outputSizeExpanded={outputSizeExpanded}
                 aspectRatio={aspectRatio}
@@ -339,7 +307,8 @@ export const GenerateView : React.FC = () => {
                 onPromptExpanded={setPromptExpanded}
                 onAspectRatioChanged={setAspectRatio}
                 onRatioLockClick={() => setRatioLocked(!ratioLocked)}
-                selectedModel={selectedModel || models[0]} onChangeModelClick={() => setShowSelectModelView(true)} />
+                selectedModel={selectedModel || (models ? models[0] : undefined)} 
+                onChangeModelClick={() => setShowSelectModelView(true)} />
             </Box>
           </Box>
 
@@ -381,7 +350,7 @@ export const GenerateView : React.FC = () => {
               defaultValue={1}
               min={1}
               max={4}
-              onChange={(e, v) => setNumberImages(v.toString())}
+              onChange={(_, v) => setNumberImages(v.toString())}
 
             />             
 
@@ -409,6 +378,10 @@ export const GenerateView : React.FC = () => {
               maxHeight: "calc(90vh - 64px - 64px)",
             }}
           >
+            {loadingImages.map((_, index) => (
+              <ThumbnailComponent index={index} key={index} loading={true} hasError={false} thumb={undefined} />
+            ))}
+
             {thumbnails.map((thumb, index) => (<ThumbnailComponent setOpenImage={setOpenImage} index={index} thumb={thumb} key={index} loading={thumb.loading} hasError={thumb.hasError} />))}
           </Box>
 

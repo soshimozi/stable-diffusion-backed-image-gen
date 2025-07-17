@@ -1,5 +1,5 @@
 import React, { useState, useRef } from "react";
-import { Popper, Box, Paper, useTheme } from "@mui/material";
+import { Popper, Paper, useTheme } from "@mui/material";
 
 interface HoverTooltipProps {
   content: React.ReactNode;

@@ -1,4 +1,4 @@
-import { Box, Button, type SxProps, type Theme } from "@mui/material";
+import { Box } from "@mui/material";
 import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
 
 export interface HoverButtonInfoProps  {

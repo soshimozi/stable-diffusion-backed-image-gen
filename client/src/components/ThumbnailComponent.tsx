@@ -2,14 +2,13 @@ import { Box, CircularProgress, IconButton, Tooltip, useTheme } from "@mui/mater
 import DownloadIcon from "@mui/icons-material/Download";
 import DeleteIcon from "@mui/icons-material/Delete";
 import React, { useState } from "react";
-import type { Thumbnail } from "../types/Thumbnail";
-import { Loader } from "./Loader";
+import type { ThumbnailData } from "../types/ThumbnailData";
 import BrokenImageIcon from '@mui/icons-material/BrokenImage';
 
 export interface ThumbnailComponentProps {
-  thumb: Thumbnail, 
+  thumb?: ThumbnailData, 
   index: number, 
-  setOpenImage: (url: string) => void,
+  setOpenImage?: (url: string) => void,
   loading: boolean
   hasError: boolean
 }
@@ -80,12 +79,13 @@ export const ThumbnailComponent : React.FC<ThumbnailComponentProps> = ({thumb, i
         cursor: "pointer",
       }}
     >
+      {thumb && 
       <img
         src={thumb.url}
         alt={`Thumbnail ${index + 1}`}
-        onClick={() => setOpenImage(thumb.url)}
+        onClick={() => setOpenImage && setOpenImage(thumb.url)}
         style={{ width: "100%", height: "100%", objectFit: "cover" }}
-      />
+      />}
 
       {hovered && (
         <Box

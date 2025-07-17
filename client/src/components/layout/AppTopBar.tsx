@@ -1,7 +1,7 @@
 // components/layout/AppTopBar.tsx
 import React, { useState, type JSX } from "react";
 import { styled, alpha, useTheme } from '@mui/material/styles';
-import { AppBar, Badge, Box, Drawer, IconButton, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Menu, MenuItem, Toolbar, Typography, Link as MUILink } from "@mui/material";
+import { AppBar, Badge, Box, Drawer, IconButton, Menu, MenuItem, Toolbar, Typography } from "@mui/material";
 import InputBase from '@mui/material/InputBase';
 import SearchIcon from '@mui/icons-material/Search';
 import MailIcon from '@mui/icons-material/Mail';
@@ -10,15 +10,10 @@ import { useAuth0 } from "@auth0/auth0-react";
 import MenuIcon from '@mui/icons-material/Menu';
 import ChevronLeftIcon from '@mui/icons-material/ChevronLeft';
 import ImageIcon from '@mui/icons-material/Image';
-import ModelTrainingIcon from '@mui/icons-material/ModelTraining';
 import TokenIcon from '@mui/icons-material/Token';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
-import { Link, useNavigate, useNavigation } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import HomeIcon from '@mui/icons-material/Home';
-
-interface Props {
-  drawerWidth: number;
-}
 
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
@@ -118,8 +113,8 @@ const AppTopBar: React.FC = () => {
   const { user, isAuthenticated, isLoading, loginWithRedirect, logout  } = useAuth0();
  
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null);
-  const [mailCount, setMailCount] = React.useState(0);
-  const [messageCount, setMessageCount] = React.useState(0);
+  const [mailCount /*, setMailCount */] = React.useState(0);
+  const [messageCount /*, setMessageCount*/] = React.useState(0);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const navigate = useNavigate();
 
@@ -279,7 +274,7 @@ const AppTopBar: React.FC = () => {
       <Box sx={{display: "flex", flexDirection: "column", gap: 1}}>
         {menu.map((item, index) => {
           return (
-            <MenuEntry title={item.primary} icon={item.icon} onClick={() => {
+            <MenuEntry key={index} title={item.primary} icon={item.icon} onClick={() => {
               setDrawerOpen(false);
               navigate(item.to)
             }} />

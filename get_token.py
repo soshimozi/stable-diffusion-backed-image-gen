@@ -5,6 +5,6 @@ import modal
 app = modal.App()
 
 
-@app.function(secrets=[modal.Secret.from_name("hf-token")])
+@app.function(secrets=[modal.Secret.from_name("db-secrets")])
 def f():
-    print(os.environ["HF_TOKEN"])
+    print(os.environ["DATABASE_URL"])

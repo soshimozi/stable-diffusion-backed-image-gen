@@ -1,5 +1,4 @@
-import { Box, Typography, Tooltip, TextField, styled, MenuItem, InputLabel, Slider, type SliderValueLabelProps, Button, Stack } from "@mui/material";
-import InfoOutlineIcon from '@mui/icons-material/InfoOutline';
+import { Box, Typography, Tooltip, TextField, styled, MenuItem, Slider, type SliderValueLabelProps, Button, Stack, CircularProgress } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAccordion, { type AccordionProps } from '@mui/material/Accordion';
 import MuiAccordionDetails from '@mui/material/AccordionDetails';
@@ -9,17 +8,14 @@ import MuiAccordionSummary, {
 } from '@mui/material/AccordionSummary';
 import ArrowForwardIosSharpIcon from '@mui/icons-material/ArrowForwardIosSharp';
 import { HoverTooltip } from "./HoverTooltip";
-import { ToolTipContent } from "./ToolTipContent";
 import { HoverButtonInfo } from "./HoverButtonInfo";
-import { useState } from "react";
 import LockOpenIcon from '@mui/icons-material/LockOpen';
 import LockOutlineIcon from '@mui/icons-material/LockOutline';
 import FormControl from '@mui/material/FormControl';
-import Select, { type SelectChangeEvent } from '@mui/material/Select';
+import Select from '@mui/material/Select';
 import { isNumeric } from "../helpers/parsingFunctions";
 import type { AIModel } from "../types/AIModel";
 import ArrowForwardIcon from "@mui/icons-material/ArrowForward";
-import { useNavigate } from "react-router-dom";
 
 
 export interface SideBarProps {
@@ -30,11 +26,12 @@ export interface SideBarProps {
   prompt: string;
   imageWidth: string;
   imageHeight: string;
-  selectedModel: AIModel;
+  selectedModel?: AIModel;
   modelExpanded: boolean;
   aspectRatio: string;
   ratioLocked: boolean;
   negative?: string;
+  dataLoading: boolean;
   onNegativeChange: (negative: string) => void;
   onRatioLockClick: () => void;
   onModelExpanded: (expanded:boolean) => void;
@@ -65,7 +62,7 @@ const AccordionSummary = styled((props: AccordionSummaryProps) => (
     expandIcon={<ArrowForwardIosSharpIcon sx={{ fontSize: '0.9rem' }} />}
     {...props}
   />
-))(({ theme }) => ({
+))(() => ({
   [`& .${accordionSummaryClasses.expandIconWrapper}.${accordionSummaryClasses.expanded}`]:
     {
       transform: 'rotate(90deg)',
@@ -106,7 +103,6 @@ export const SideBar: React.FC<SideBarProps> = ({
   onPromptExpanded,
   onOutputSizeExpanded,
   onAdvancedSettingsExpanded,
-  onNegativeChange,
   prompt, 
   imageWidth, 
   imageHeight, 
@@ -117,14 +113,9 @@ export const SideBar: React.FC<SideBarProps> = ({
   outputSizeExpanded,
   advancedSettingsExpanded,
   ratioLocked,
-  negative
+  dataLoading,
   
   }) => {
-  //const [aspectRatio, setAspectRatio] = useState("");
-  //const [ratioLocked, setRatioLocked] = useState(true);
-
-
-  const navigate = useNavigate();
 
   function getAspectRatio(aspect: string) {
 
@@ -255,7 +246,7 @@ export const SideBar: React.FC<SideBarProps> = ({
     <>
         <Accordion 
           expanded={modelExpanded} 
-          onChange={(evt, isExpanded) => {
+          onChange={(_, isExpanded) => {
             onModelExpanded(isExpanded);
           }}>
           <AccordionSummary
@@ -271,40 +262,54 @@ export const SideBar: React.FC<SideBarProps> = ({
           </AccordionSummary>
           <AccordionDetails>
           <Box sx={{ height: 100, overflow: "hidden", position: "relative", border: "1px solid #555", borderRadius: "5px" }}>
-            <img
-              src={selectedModel.image_data}
-              style={{
-                width: "100%",
-                height: "100%",
-                objectFit: "cover",
-                objectPosition: "center",
-              }}
-            />
-            <Box sx={{paddingLeft: "5px", paddingRight: "5px", display: "flex", position: "absolute", justifyContent:"space-between", alignItems: "center", height: "100%", width: "100%", background: "rgba(0, 0, 0, 0.60)", left: 0, right: 0, top: 0, color: "#fff"}}>
-              <Typography variant="subtitle1">{selectedModel.name}</Typography>
-              <Button
-                onClick={onChangeModelClick}
-                variant="outlined"
-                size="small"
-                endIcon={<ArrowForwardIcon />}
-                sx={{
-                  color: "#fff",
-                  borderColor: "#fff",
-                  "&:hover": {
+            {dataLoading ? (
+              <Box sx={{paddingLeft: "5px", paddingRight: "5px", display: "flex", justifyContent:"center", alignItems: "center", height: "100%", width: "100%", color: "#fff"}}>
+                <CircularProgress color={"primary"} size={50} /></Box>
+            ) : (
+              <>
+              {selectedModel && 
+              (
+                <img
+                  src={selectedModel.image_data}
+                  style={{
+                    width: "100%",
+                    height: "100%",
+                    objectFit: "cover",
+                    objectPosition: "center",
+                  }}
+                />
+              )}
+
+              <Box sx={{paddingLeft: "5px", paddingRight: "5px", display: "flex", position: "absolute", justifyContent:"space-between", alignItems: "center", height: "100%", width: "100%", background: "rgba(0, 0, 0, 0.60)", left: 0, right: 0, top: 0, color: "#fff"}}>
+                <Typography variant="subtitle1">
+                  {selectedModel ? selectedModel.name : "Select Model" }
+                  </Typography>
+                <Button
+                  onClick={onChangeModelClick}
+                  variant="outlined"
+                  size="small"
+                  endIcon={<ArrowForwardIcon />}
+                  sx={{
+                    color: "#fff",
                     borderColor: "#fff",
-                    backgroundColor: "rgba(255,255,255,0.1)",
-                  },
-                }}
-              >
-                Switch
-              </Button>            
-            </Box>
+                    "&:hover": {
+                      borderColor: "#fff",
+                      backgroundColor: "rgba(255,255,255,0.1)",
+                    },
+                  }}
+                >
+                  {selectedModel ?
+                  <>Switch</> : <>Select</>}
+                </Button>            
+              </Box>
+            </>
+            )}
           </Box>            
           </AccordionDetails>
         </Accordion>
         <Accordion
           expanded={promptExpanded} 
-          onChange={(evt, isExpanded) => {
+          onChange={(_, isExpanded) => {
             onPromptExpanded(isExpanded);
           }}>
           <AccordionSummary
@@ -354,7 +359,7 @@ export const SideBar: React.FC<SideBarProps> = ({
                   onPromptChange(event.target.value);
                 }}
               />
-              {selectedModel.negative_available && (
+              {selectedModel && selectedModel.negative_available && (
                 <Box sx={{display: "flex", flexDirection: "column", gap: "4px"}}>
                 <Box sx={{display: "flex", flexDirection: "row", gap: "1px"}}>
                     <Typography variant="button">
@@ -386,7 +391,7 @@ export const SideBar: React.FC<SideBarProps> = ({
         </Accordion>          
         <Accordion
           expanded={outputSizeExpanded} 
-          onChange={(evt, isExpanded) => {
+          onChange={(_, isExpanded) => {
             onOutputSizeExpanded(isExpanded);
           }}>
           <AccordionSummary
@@ -482,7 +487,7 @@ export const SideBar: React.FC<SideBarProps> = ({
                     min={1}
                     max={MAX_WIDTH}
                     defaultValue={MAX_WIDTH}
-                    onChange={(e, v) => changeImageWidth(v.toString())}
+                    onChange={(_, v) => changeImageWidth(v.toString())}
                   />                
                 <TextField variant="outlined" value={imageWidth} sx={{maxWidth: "80px"}}
                   onChange={(e) => {
@@ -517,7 +522,7 @@ export const SideBar: React.FC<SideBarProps> = ({
                   defaultValue={MAX_HEIGHT}
                   min={1}
                   max={MAX_HEIGHT}
-                  onChange={(e, v) => changeImageHeight(v.toString())}
+                  onChange={(_, v) => changeImageHeight(v.toString())}
 
                 />                
                 <TextField variant="outlined" value={imageHeight} sx={{maxWidth: "80px"}}
@@ -544,7 +549,7 @@ export const SideBar: React.FC<SideBarProps> = ({
         </Accordion>
         <Accordion
           expanded={advancedSettingsExpanded} 
-          onChange={(evt, isExpanded) => {
+          onChange={(_, isExpanded) => {
             onAdvancedSettingsExpanded(isExpanded);
           }}>
           <AccordionSummary

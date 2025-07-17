@@ -6,7 +6,6 @@ import TuneIcon from "@mui/icons-material/Tune";
 import FlashOnIcon from "@mui/icons-material/FlashOn";
 import Grid from '@mui/material/GridLegacy';
 import { useNavigate } from "react-router";
-import logo from "../../assets/logo.png";
 
 const PromptForgeLandingPage: React.FC = () => {
   const navigate = useNavigate();

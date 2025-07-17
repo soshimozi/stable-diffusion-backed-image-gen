@@ -1,8 +1,8 @@
-import { Box, Link, Typography } from '@mui/material';
-import {  styled, useTheme } from '@mui/material/styles';
+import { Box, Typography } from '@mui/material';
+import {  styled } from '@mui/material/styles';
 import { useState } from 'react';
 
-const ModelImage = styled('img')(({ theme }) => ({
+const ModelImage = styled('img')(() => ({
       display: "block", 
       backgroundSize: "cover",
       backgroundRepeat: "no-repeat",
@@ -12,7 +12,7 @@ const ModelImage = styled('img')(({ theme }) => ({
       width: "100%",
 }));
 
-const TagDisplay = styled(Box)(({theme}) => ({
+const TagDisplay = styled(Box)(() => ({
   display: "flex",
   width: "120px",
   minWidth: "120px",
@@ -30,7 +30,6 @@ interface ModelViewProps {
   onClick: () => void;
   image: string;
   name: string;
-  description: string;
   tags: string[];
   selected: boolean;
   model_url?: string;
@@ -46,7 +45,7 @@ function cleanUrl(url: string): string {
   return cleaned;
 }
 
-const ModelLink = styled('a')(({theme}) => ({
+const ModelLink = styled('a')(() => ({
   color: "#fff",
   textDecoration: "none",
   '&:hover': {
@@ -54,9 +53,8 @@ const ModelLink = styled('a')(({theme}) => ({
   }  
 }));
 
-export const ModelView : React.FC<ModelViewProps> = ({onClick, image, name, description, tags, selected, model_url}) => {
+export const ModelView : React.FC<ModelViewProps> = ({onClick, image, name, tags, selected, model_url}) => {
 
-  const theme = useTheme();
   const [hover, setHover] = useState(false)
   
 

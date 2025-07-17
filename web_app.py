@@ -26,12 +26,12 @@ class ModelInfo(BaseModel):
 class ImageRequest(BaseModel):
     prompt: str
     model_id: str
-    height: int | None = 1024
-    width: int | None = 1024
-    iterations: int | None = 50
-    guidance: float | None = 3.5
+    height: int
+    width: int
+    iterations: int
+    guidance: float
     seed: int | None = None
-    num_images: int | None = 1
+    num_images: int
     negative_prompt: str | None = None
 
 
