@@ -6,13 +6,16 @@ import CloseIcon from "@mui/icons-material/Close";
 import { useLocation } from "react-router-dom";
 import { ThumbnailComponent } from "../ThumbnailComponent";
 import { ImageService } from "../../services/ImageService";
-import { SideBar, ValueLabelComponent } from "../SideBar";
+import { type AspectRatioType, SideBar, ValueLabelComponent } from "./SideBar";
 import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ModelView } from "../ModelView";
 import { dispatch } from "../../store/store";
 import { actions } from "../../store/actions";
 import { useQuery } from "@tanstack/react-query";
 import { ModelsService } from "../../services/ModelsService";
+import { useSnackbar } from "../SnackbarContext";
+import { ErrorPage } from "./ErrorPage";
+import { useAuth0 } from "@auth0/auth0-react";
 
 type GenerateViewState = {
   prompt: string;
@@ -32,28 +35,79 @@ export const GenerateView : React.FC = () => {
   const [prompt, setPrompt] = useState(defaultPrompt);
   const [numberImages, setNumberImages] = useState("1");
   const [cost, setCost] = useState<number>(0);
-  const [imageWidth, setImageWidth] = useState("1440");
-  const [imageHeight, setImageHeight] = useState("1440");
+  const [imageWidth, setImageWidth] = useState("1024");
+  const [imageHeight, setImageHeight] = useState("1024");
   const [showSelectModelView, setShowSelectModelView] = useState(false);
   const [modelExpanded, setModelExpanded] = useState(false);
   const [promptExpanded, setPromptExpanded] = useState(true);
   const [outputSizeExpanded, setOutputSizeExpanded] = useState(false);
   const [advancedSettingsExpanded, setAdvancedSettingsExpanded] = useState(false);
-  const [aspectRatio, setAspectRatio] = useState("");
+  const [aspectRatio, setAspectRatio] = useState<AspectRatioType>("");
   const [ratioLocked, setRatioLocked] = useState(false);
-  const [negative, setNegative] = useState<string | undefined>()
   const [loadingImages, setLoadingImages] = useState<string[]>([])
+  const [useSeed, setUseSeed] = useState(false);
+  const [seed, setSeed] = useState<number | undefined>();
+  const [negativePrompt, setNegativePrompt] = useState<string | undefined>(undefined);
+  const [ accessToken, setAccessToken ] = useState<string | undefined>();
+  const [ error, setError ] = useState<string | undefined>();
+  const [steps, setSteps] = useState(30);
+  const [cfg, setCFG] = useState(3.0);
 
   const modelsService = new ModelsService();
 
-  const accessToken = useTypedSelector((state) => state.appState.token);
-  //const models = useTypedSelector((state) => state.model.modelList);
+  const { showSnackbar } = useSnackbar();
 
-  const { data: models, isLoading: dataLoading } = useQuery({
-    queryKey: ['models'],
-    queryFn: () => modelsService.getModels(accessToken!)
-  });  
+  const models = useTypedSelector((state) => state.model.modelList);
+  const { isLoading: authLoading, isAuthenticated, getAccessTokenSilently } = useAuth0();
+
+  const [dataLoading, setDataLoading] = useState(false);
   
+  useEffect(() => {
+    if(authLoading || !isAuthenticated || dataLoading || models.length > 0 || error) return;
+
+    (async () => {
+
+      setDataLoading(true);
+
+      let token = undefined;
+      try {
+        token = await getAccessTokenSilently({            
+            authorizationParams: {
+              audience: import.meta.env.VITE_OKTA_AUDIENCE,
+              scope: "read:models",
+            },
+        });
+
+      } catch (err) {
+        console.error("TokenFetcher error:", err);
+        setError((err as any).message);
+      }
+
+      if(!token) return;
+
+      dispatch(actions.appState.setToken(token));
+      setAccessToken(token);
+
+      var models = await modelsService.getModels(token);
+      dispatch(actions.models.setModels(models));
+
+      const profileUrl = `${import.meta.env.VITE_BASE_URL}/me`;
+
+      const generateResponse = await fetch(profileUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        },
+      });
+
+      console.log('generateResponse', generateResponse)
+
+      setDataLoading(false);
+
+    })();
+
+  });
 
   useEffect(() => {
     
@@ -147,6 +201,9 @@ export const GenerateView : React.FC = () => {
 
         console.error("Error polling results:", error);
         
+
+        showSnackbar({message: "Failed to complete image generation.  Your tokens will be refunded.", variant: "error", verticalAnchor: "top", horizontalAnchor: "right"});
+
         setLoadingImages([]);
 
         clearInterval(pollInterval);
@@ -156,7 +213,20 @@ export const GenerateView : React.FC = () => {
   }
 
 
+  function normalizeToGCF(value: number, gcf: number): number {
+    
+    const normalizeFactor = Math.floor(value / gcf);
+    return Math.floor(gcf * normalizeFactor);
+
+  }
+
+
   const requestImageJob = async () => {
+
+    if(!accessToken) {
+      showSnackbar({message: "No access token.  Try refreshing."});
+      return;
+    }
 
     setLoading(true);
 
@@ -164,56 +234,60 @@ export const GenerateView : React.FC = () => {
     const fullPrompt = triggerWord + prompt;
     const model_id =  selectedModel?.id || "flux"
 
-    try {
-      const jobId:string = await imageService.startImageJob(accessToken, 
-        { 
+    // normalize imageWidth and imageHeight
+    const width = normalizeToGCF(parseInt(imageWidth), 16);
+    const height = normalizeToGCF(parseInt(imageHeight), 16);
+
+    const jobRequest = { 
           prompt: fullPrompt, 
           model_id: model_id, 
-          width: parseInt(imageWidth), 
-          height: parseInt(imageHeight), 
-          negative_prompt: negative, 
+          width: width, 
+          height: height, 
+          negative_prompt: negativePrompt, 
+          seed: useSeed ? seed : undefined,
           num_images: parseInt(numberImages), 
-          guidance: 3.0,
-          iterations: 75
-        })
-      startJobPolling(jobId);
+          guidance: cfg, // 3.0, /* parseInt(guidance) */
+          iterations: steps
+    };
 
-      // add loading images
-      const jobIds:string[] = []
-      for(var i = 0; i < parseInt(numberImages); i++) {
+    let jobId: string | undefined = undefined;
+    try {
 
-        jobIds.push(jobId);
-
-      // const th: ThumbnailData = {
-      //   url:"",
-      //   prompt,
-      //   model: model_id,
-      //   loading: true,
-      //   hasError: false
-      // };
-
-      // thumbnails.push(th);
-      }
-
-      setLoadingImages((_) => {
-        return [...jobIds];
-      })
-
-      //setCallId(result);
+      jobId = await imageService.startImageJob(accessToken, jobRequest);
+      showSnackbar({message: "Image generation starting.  This could take a few minutes, so please be patient.", variant: "success", verticalAnchor: "top", horizontalAnchor: "right"});
     }
     catch (e) {
-
-      // todo fix spinners
-
-      // if(lastThumbnail) {
-      //   updateThumbnail({...lastThumbnail, loading: false, hasError: true})
-      // }
-
       console.error(e);
+      showSnackbar({message: "Failed to start image generation job.", variant: "error", verticalAnchor: "top", horizontalAnchor: "right"});
     } finally {
       setLoading(false);
     }      
-  };  
+
+    if( jobId ) {
+      startJobPolling(jobId);
+
+      // add jobId to each loading image for later retrieval
+      const imageIds:string[] = []
+      for(var i = 0; i < parseInt(numberImages); i++) {
+        imageIds.push(jobId);
+      }
+
+      setLoadingImages((_) => {
+        return [...imageIds];
+      })
+    }
+  }; 
+  
+  // const { data: models, isLoading: dataLoading, isError, error: loadingError } = useQuery({
+  //   queryKey: ['models'],
+  //   queryFn: async () => modelsService.getModels(accessToken),
+  //   retry: 3,
+  //   retryDelay: (attempt) => attempt * 1000
+  // });  
+
+
+  //if(isError) return <ErrorPage error={`Failed to load models: ${loadingError.message} ${loadingError.cause ? "-" + loadingError.cause : ""}`} />
+
 
   if(showSelectModelView) {
 
@@ -276,31 +350,58 @@ export const GenerateView : React.FC = () => {
         <Box sx={{
           display: "flex",
           flexDirection: "column",
-          width: "22%",
-          paddingRight: "15px",
-          marginTop: "8px"
+          width: "25%",
+          marginTop: "8px",
+          gap: 0
         }}>
 
           <Box sx={{
-            height: "calc(90vh - 100px - 64px - 64px)",
+            height: "calc(90vh - 100px - 64px - 64px - 20px)",
             overflowY: "auto",
             marginBottom: "15px",
+            scrollbarGutter: 'stable',
           }}>
-            <Box sx={{paddingRight: "4px"}}>
-            <SideBar onPromptChange={(prompt) => setPrompt(prompt)} 
+            <Box>
+            <SideBar 
+                onPromptChange={(prompt) => setPrompt(prompt)} 
+                onNegativePromptChange={(prompt) => setNegativePrompt(prompt)}
                 prompt={prompt} 
+                negativePrompt={negativePrompt}
                 imageHeight={imageHeight}  imageWidth={imageWidth} 
                 onImageHeightChange={setImageHeight} 
                 onImageWidthChange={setImageWidth} 
                 promptExpanded={promptExpanded}
                 modelExpanded={modelExpanded}
+                seed={seed}
+                steps={steps}
+                onStepsChanged={(value) => {
+                  
+                  const intVal = parseInt(value);
+
+                  if(!isNaN(intVal)) {
+                    setSteps(intVal);
+                  }
+
+                }}
+                onSeedChanged={(value) => {
+                    const intVal = parseInt(value);
+                    isNaN(intVal) ?
+                      setSeed(undefined)
+                    :
+                      setSeed(intVal);
+                  }
+                }
+                cfg={cfg}
+                onCFGChange={(v) => {
+                  const floatValue = parseFloat(v);
+                  if(isNaN(floatValue)) return;
+                  setCFG(parseFloat(floatValue.toFixed(2)))
+                }}
                 dataLoading={dataLoading}
                 advancedSettingsExpanded={advancedSettingsExpanded}
                 outputSizeExpanded={outputSizeExpanded}
                 aspectRatio={aspectRatio}
                 ratioLocked={ratioLocked}
-                negative={negative}
-                onNegativeChange={setNegative}
                 onModelExpanded={setModelExpanded}
                 onAdvancedSettingsExpanded={setAdvancedSettingsExpanded}
                 onOutputSizeExpanded={setOutputSizeExpanded}
@@ -308,11 +409,14 @@ export const GenerateView : React.FC = () => {
                 onAspectRatioChanged={setAspectRatio}
                 onRatioLockClick={() => setRatioLocked(!ratioLocked)}
                 selectedModel={selectedModel || (models ? models[0] : undefined)} 
-                onChangeModelClick={() => setShowSelectModelView(true)} />
+                onChangeModelClick={() => setShowSelectModelView(true)} 
+                onUseSeedChange={setUseSeed}
+                useSeed={useSeed}
+                ></SideBar>
             </Box>
           </Box>
 
-          <Box sx={{minHeight: "100px", display: "flex", alignItems: "flex-start", flexDirection: "column", gap: "6px", borderTop: "1px solid #333",  flexGrow: "1 1"}}>
+          <Box sx={{minHeight: "100px", display: "flex", alignItems: "flex-start", flexDirection: "column", gap: "6px", borderTop: "1px solid #333",  flexGrow: "1", mr: "15px"}}>
             <Box sx={{display: "flex", alignItems: "center", gap: "8px", justifyContent: "space-between", width: "100%", height: "100%", marginTop: "6px"}}>
               <Typography sx={{fontWeight: 400, fontSize: "14px"}}>Number of Images</Typography>
               <Box sx={{width: "60px"}}>

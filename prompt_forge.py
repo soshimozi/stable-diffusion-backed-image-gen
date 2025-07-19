@@ -7,6 +7,9 @@ weightsVolume = modal.Volume.from_name("weights", create_if_missing=True)
 
 MIN_GPU_CONTAINERS = 0
 
+gpu_model = "H100"
+
+
 # Define the container image with required packages
 gpu_image = (
     modal.Image.debian_slim()
@@ -43,10 +46,10 @@ with gpu_image.imports():
     
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class SDXLTurboGenerator:
     @modal.enter()
@@ -62,26 +65,58 @@ class SDXLTurboGenerator:
         self,
         request: dict,
     ) -> bytes:
-        
-        image = self.pipe(
+
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        negative_prompt = request.get("negative_prompt", "")
+        if negative_prompt is None:
+            negative_prompt = ""
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
             prompt=request["prompt"],
-            width=request["width"],
-            height=request["height"],
             num_inference_steps=1,
             guidance_scale=0.0,
-        ).images[0]
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            **generator_arg,  
+        )
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls                
   
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class FluxGhibliArtGenerator:
     @modal.enter()
@@ -101,26 +136,60 @@ class FluxGhibliArtGenerator:
         self,
         request: dict,
     ) -> bytes:
-        
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]        
-        ).images[0]
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls                
 
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class Isometric3DGenerator:
     @modal.enter()
@@ -142,25 +211,60 @@ class Isometric3DGenerator:
         request: dict,
     ) -> bytes:
         
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]        
-        ).images[0]
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls                
 
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class SuperRealismArtGenerator:
     @modal.enter()
@@ -180,26 +284,61 @@ class SuperRealismArtGenerator:
         self,
         request: dict,
     ) -> bytes:
-        
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]        
-        ).images[0]
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls                
       
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class AnimeArtGenerator:
     @modal.enter()
@@ -222,25 +361,61 @@ class AnimeArtGenerator:
         request: dict,
     ) -> bytes:
         
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]        
-        ).images[0]
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls                
      
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class OpenDalleV1Generator:
     @modal.enter()
@@ -256,26 +431,66 @@ class OpenDalleV1Generator:
         self,
         request: dict,
     ) -> bytes:
-        
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]
-        ).images[0]
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        negative_prompt = request.get("negative_prompt", "")
+        if negative_prompt is None:
+            negative_prompt = ""
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls        
     
 
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"H100", #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class StableDiffusionGenerator:
     @modal.enter()
@@ -312,6 +527,10 @@ class StableDiffusionGenerator:
         if height is None:
             height = 512
 
+        negative_prompt = request.get("negative_prompt", "")
+        if negative_prompt is None:
+            negative_prompt = ""
+
         seed = request.get("seed", None)
         if seed is not None:
             # one Generator seeded => deterministic batch
@@ -325,10 +544,11 @@ class StableDiffusionGenerator:
             prompt=request["prompt"],
             num_inference_steps=steps,
             guidance_scale=guidance,
-            num_images_per_prompt=2,
-            width=1024,
-            height=1024,
-            # **generator_arg,  
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            **generator_arg,  
         )
 
         data_urls = []
@@ -347,10 +567,10 @@ class StableDiffusionGenerator:
      
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class FluxGenerator:
     @modal.enter()
@@ -367,30 +587,65 @@ class FluxGenerator:
         request: dict,
     ) -> bytes:
         
-        image = self.pipe(
-            prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"]
-        ).images[0]
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
+            prompt=request["prompt"],
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            **generator_arg,  
+        )
+
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls        
     
 @app.cls(
     image=gpu_image, 
-    gpu="A100-80GB",     
+    gpu=gpu_model, #"A100-80GB",     
     min_containers=MIN_GPU_CONTAINERS,
     volumes={"/weights": weightsVolume},
-    secrets=[modal.Secret.from_name("hf-token")],  # 👈 attaches HF_TOKEN env var
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
 )
 class ProteusGenerator:
     @modal.enter()
     def enter(self):
 
-        model = "ProteusV0.4"
+        model = "ProteusV0.5"
         model_path = "/weights/model-cache/" + model
         
         # Load VAE component
@@ -400,7 +655,7 @@ class ProteusGenerator:
         )
 
         self.pipe = StableDiffusionXLPipeline.from_pretrained(
-            "dataautogpt3/ProteusV0.4", 
+            "dataautogpt3/" + model, 
             vae=vae,
             torch_dtype=torch.float16,
             cache_dir=model_path
@@ -414,20 +669,58 @@ class ProteusGenerator:
         self,
         request: dict,
     ) -> bytes:
-        
-        image = self.pipe(
+
+        num_images = request.get("num_images", 1)
+        if num_images is None:
+            num_images = 1
+
+        steps = request.get("iterations", 75)
+        if steps is None:
+            steps = 75
+
+        guidance = request.get("guidance", 3.5)
+        if guidance is None:
+            guidance = 3.5
+
+        width = request.get("width", 512)
+        if width is None:
+            width = 512
+
+        height = request.get("height", 512)
+        if height is None:
+            height = 512
+
+        negative_prompt = request.get("negative_prompt", "")
+        if negative_prompt is None:
+            negative_prompt = ""
+
+        seed = request.get("seed", None)
+        if seed is not None:
+            # one Generator seeded => deterministic batch
+            gen = torch.Generator(device="cuda").manual_seed(int(seed))
+            generator_arg = {"generator": gen}
+        else:
+            # no generator => fresh random for each image
+            generator_arg = {}
+
+        outputs = self.pipe(
             prompt=request["prompt"],
-            num_inference_steps=request["iterations"],
-            guidance_scale=request["guidance"],
-            width=request["width"],
-            height=request["height"],
-            negative_prompt=["negative_prompt"]
-        ).images[0]
+            num_inference_steps=steps,
+            guidance_scale=guidance,
+            num_images_per_prompt=num_images,
+            width=width,
+            height=height,
+            negative_prompt=negative_prompt,
+            **generator_arg,  
+        )
 
-        buf = BytesIO()
-        image.save(buf, format="PNG")
-        return buf.getvalue()    
-
+        data_urls = []
+        for img in outputs.images:
+            buf = BytesIO()
+            img.save(buf, format="PNG")
+            b64 = base64.b64encode(buf.getvalue()).decode("ascii")
+            data_urls.append(b64)
+        return data_urls
 
 def slugify(s: str) -> str:
     return "".join(c if c.isalnum() else "-" for c in s).strip("-")

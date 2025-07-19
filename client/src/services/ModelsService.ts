@@ -6,6 +6,8 @@ export class ModelsService {
 
   public async getModels(accessToken: string): Promise<AIModel[]>  {
 
+      console.log('accessToken: ', accessToken);
+      
       const modelUrl = VITE_BASE_URL + "/model";
       
       const modelsResponse = await fetch(modelUrl, {

@@ -1,16 +1,16 @@
+from typing_extensions import Annotated
 import modal
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-from sqlalchemy.orm import sessionmaker, declarative_base
-from sqlalchemy import Column, Integer, String, Boolean, create_engine, select
+from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Mapped, mapped_column, Session
+from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, create_engine, select
 from typing import Optional    
 from pathlib import Path
 from typing import List, Optional
 from pydantic import BaseModel
 from fastapi import Depends, HTTPException
+from modal import Dict
 
 app = modal.App("image-generator-api")
-
-Base = declarative_base()
 
 class ModelInfo(BaseModel):
     id: str
@@ -22,6 +22,9 @@ class ModelInfo(BaseModel):
     image_data: str
     negative_available: bool
     model_url: str | None
+    resize_available: bool
+    steps_available: bool
+    guidance_available: bool
     
 class ImageRequest(BaseModel):
     prompt: str
@@ -34,6 +37,16 @@ class ImageRequest(BaseModel):
     num_images: int
     negative_prompt: str | None = None
 
+class UserProfileResponse(BaseModel):
+    selected_model: str | None
+    token_count: int
+
+
+Base = declarative_base()
+
+int_pk = Annotated[int, mapped_column(Integer, primary_key=True)]
+str_250 = Annotated[str, mapped_column(String(length=250))]
+#int = Annotated[int, mapped_column(Integer)]
 
 class ModelData(Base):
     __tablename__ = "model"
@@ -47,22 +60,38 @@ class ModelData(Base):
     tags = Column(String)
     negative_available = Column(Boolean)
     model_url = Column(String)
+    resize_available = Column(Boolean)
+    steps_available = Column(Boolean)
+    guidance_available = Column(Boolean)
 
 
 class UserProfile(Base):
     __tablename__ = "user_profile"
 
-    id = Column(Integer, primary_key=True)
-    user_name = Column(String)
-    selected_model = Column(String)  # Adjust columns as needed
-    token_count = Column(Integer)
+    id: Mapped[int_pk] #Column(Integer, primary_key=True)
+    user_name: Mapped[str_250]
+    token_count: Mapped[int]
+    preferences: Mapped["UserPreferences"] = relationship(
+        back_populates="user"
+    )
 
-class UserProfileResponse(BaseModel):
-    selected_model: str | None
-    token_count: int
+class UserPreferences(Base):
+    __tablename__ = "user_prefs"
+
+    id: Mapped[int_pk]
+    selected_model_id: Mapped[str_250]
+    user_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("user_profile.id"),
+    )
+    user: Mapped["UserProfile"] = relationship(
+        back_populates="preferences"
+    )
 
 
 frontend_path = Path(__file__).parent / "images"
+
+job_dictionary = modal.Dict.from_name("job-dict", create_if_missing=True)
 
 web_image = (
     modal.Image.debian_slim(python_version="3.12")
@@ -108,7 +137,7 @@ MODEL_REGISTRY = {
 @app.function(
     image=web_image, 
     min_containers=1, 
-    secrets=[modal.Secret.from_name("environment"), modal.Secret.from_name("db-secrets")]
+    secrets=[modal.Secret.from_dotenv()]
 )
 @modal.concurrent(max_inputs=1000)
 @modal.asgi_app()
@@ -193,22 +222,29 @@ def ui():
         
         with engine.begin() as conn:
             row = conn.execute(
-                select(UserProfile.user_name, UserProfile.token_count, UserProfile.selected_model)
-                .where(UserProfile.user_name == subject)
+                select(UserProfile.user_name, UserProfile.token_count, UserPreferences.selected_model_id).join(UserPreferences)
             ).first()
 
             if row:
                 # row = (user_name, token_count, selected_model)
                 return UserProfileResponse(token_count=row[1], selected_model=row[2])
 
-            # no existing profile → INSERT
-            conn.execute(
-                insert(UserProfile).values(
-                    user_name=subject,
-                    token_count=100,
-                    selected_model=None,
-                )
-            )
+
+        # no existing profile → INSERT
+        with Session(bind=engine) as session:
+            profile = UserProfile(user_name=subject, token_count=100)
+            preferences = UserPreferences(selected_model_id=None, user=profile)
+
+            session.add(profile)
+            session.add(preferences)
+
+            session.commit()
+        # conn.execute(
+        #     insert(UserProfile).values(
+        #         user_name=subject,
+        #         token_count=100
+        #     )
+        # )
 
         # engine.begin() auto-commits here
         return UserProfileResponse(token_count=100, selected_model=None)      
@@ -236,7 +272,10 @@ def ui():
                 "trigger_word": db_model.trigger_word,
                 "image_data": "",
                 "negative_available": db_model.negative_available,
-                "model_url": db_model.model_url
+                "model_url": db_model.model_url,
+                "resize_available": db_model.resize_available,
+                "steps_available": db_model.steps_available,
+                "guidance_available": db_model.guidance_available
             }
 
             image_path = os.path.join(STATIC_DIR, db_model.icon_url.lstrip("/"))
@@ -263,7 +302,10 @@ def ui():
         job_id = None
 
         Model = modal.Cls.from_name("image-generator", MODEL_REGISTRY[model_id])
-        job_id = Model().generate.spawn(request.model_dump()).object_id
+
+        data = request.model_dump()
+        job_id = Model().generate.spawn(data).object_id
+        await job_dictionary.put.aio(job_id, data)
 
         return JSONResponse(content={"job_id": job_id})
 
@@ -277,9 +319,41 @@ def ui():
         except TimeoutError:
             return JSONResponse(content="", status_code=202)
 
+        job_entry = await job_dictionary.pop.aio(job_id)
+        if job_entry == None:
+            return JSONResponse(content={"message": "Job entry not found."}, status_code=404)
+        
+
+        #await job_dictionary.delete.aio(job_id)
+
         # Convert each bytes object to list of ints so it’s JSON‐serializable
         #images_as_int_lists = [list(img_bytes) for img_bytes in result]
         #return JSONResponse(content={"images": images_as_int_lists})
-        return JSONResponse({"images": b64_list})
+        return JSONResponse({"images": b64_list, "request": job_entry})
     
     return web_app
+
+
+
+#print(select(user_table.c.name, address_table.c.email_address).join(address_table))
+
+@app.function(
+    timeout=2700,  # timeout in seconds (e.g., 900s = 15 minutes)
+    cpu=4,
+    image=web_image,
+    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
+    )
+async def test():
+    from typing_extensions import Annotated
+    import modal
+    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
+    from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Mapped, mapped_column, Session
+    from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, create_engine, select
+    from typing import Optional    
+    from pathlib import Path
+    from typing import List, Optional
+    from pydantic import BaseModel
+    from fastapi import Depends, HTTPException
+    from modal import Dict
+
+    print(select(UserProfile.user_name, UserPreferences.selected_model).join(UserPreferences))

@@ -7,5 +7,8 @@ export interface AIModel  {
   available: boolean;
   tags: string[];
   negative_available: boolean;
+  resize_available: boolean;
+  steps_available: boolean;
+  guidance_available: boolean;
   model_url: string;
 };

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import { useAuth0 } from "@auth0/auth0-react";
 import { actions } from "../store/actions";
 import { Loader } from "../components/Loader";
@@ -10,18 +10,21 @@ export function AuthWrapper({ children }: { children: ReactNode }) {
   const { isLoading: authLoading, isAuthenticated, getAccessTokenSilently } = useAuth0();
 
   const didFetchRef = useRef(false);
-  const [ready, setReady] = useState(false);
 
   useEffect(() => {
+    
+    console.log('getting token?');
+
     // only once, once we’re authenticated
-    if (didFetchRef.current || authLoading || !isAuthenticated) return;
+    if (didFetchRef.current || authLoading) return;
+
     didFetchRef.current = true;
 
     (async () => {
       try {
         const token = await getAccessTokenSilently({            
             authorizationParams: {
-              audience: `https://promptforge/api`,
+              audience: import.meta.env.VITE_OKTA_AUDIENCE,
               scope: "read:models",
             },
         });
@@ -32,14 +35,12 @@ export function AuthWrapper({ children }: { children: ReactNode }) {
 
         console.error("TokenFetcher error:", err);
 
-      } finally {
-        setReady(true);
       }
     })();
 
   }, [authLoading, isAuthenticated, getAccessTokenSilently, dispatch]);
 
-  if (authLoading || !ready) {
+  if (authLoading) {
     return <Loader />;
   }
 
