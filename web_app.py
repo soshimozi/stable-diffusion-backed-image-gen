@@ -1,8 +1,9 @@
+from datetime import datetime
 from typing_extensions import Annotated
 import modal
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Mapped, mapped_column, Session
-from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, create_engine, select
+from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, Text, create_engine, select, DateTime, TIMESTAMP
 from typing import Optional    
 from pathlib import Path
 from typing import List, Optional
@@ -13,7 +14,8 @@ from modal import Dict
 app = modal.App("image-generator-api")
 
 class ModelInfo(BaseModel):
-    id: str
+    id: int
+    model_id: str
     name: str
     description: str
     available: bool
@@ -26,6 +28,9 @@ class ModelInfo(BaseModel):
     steps_available: bool
     guidance_available: bool
     
+class UserProfilePutRequest(BaseModel):
+    selected_model_id: int
+
 class ImageRequest(BaseModel):
     prompt: str
     model_id: str
@@ -38,31 +43,122 @@ class ImageRequest(BaseModel):
     negative_prompt: str | None = None
 
 class UserProfileResponse(BaseModel):
-    selected_model: str | None
+    selected_model_id: int | None
     token_count: int
+    user_name: str
 
 
 Base = declarative_base()
 
+# int_pk = Annotated[int, mapped_column(Integer, primary_key=True)]
+# str_250 = Annotated[str, mapped_column(String(length=250))]
+# str_150 = Annotated[str, mapped_column(String(length=150))]
+# dt = Annotated[datetime, mapped_column(DateTime)]
+# txt = Annotated[str, mapped_column(Text)]
+# #int = Annotated[int, mapped_column(Integer)]
+
+# class ModelData(Base):
+#     __tablename__ = "model"
+    
+#     id = Column(String, primary_key=True)
+#     name = Column(String)
+#     description = Column(String)
+#     icon_url = Column(String)
+#     available = Column(Boolean)
+#     trigger_word = Column(String)
+#     tags = Column(String)
+#     negative_available = Column(Boolean)
+#     model_url = Column(String)
+#     resize_available = Column(Boolean)
+#     steps_available = Column(Boolean)
+#     guidance_available = Column(Boolean)
+
+
+# class UserProfile(Base):
+#     __tablename__ = "user_profile"
+
+#     id: Mapped[int_pk] #Column(Integer, primary_key=True)
+#     user_name: Mapped[str_250]
+#     token_count: Mapped[int]
+#     preferences: Mapped["UserPreferences"] = relationship(
+#         back_populates="user"
+#     )
+#     images: Mapped[list["UserImage"]] = relationship(
+#         back_populates="user",
+#     )
+
+# class UserPreferences(Base):
+#     __tablename__ = "user_prefs"
+
+#     id: Mapped[int_pk]
+#     selected_model_id: Mapped[str_250]
+#     user_id: Mapped[int] = mapped_column(
+#         Integer,
+#         ForeignKey("user_profile.id"),
+#     )
+#     user: Mapped["UserProfile"] = relationship(
+#         back_populates="preferences"
+#     )
+
+# class JobHistory(Base):
+#     __tablename__ = "job_history"
+#     id: Mapped[int_pk]
+#     job_reference_id: Mapped[str_150]
+#     timestamp: Mapped[dt]
+#     images: Mapped[list["UserImage"]] = relationship(
+#         "UserImage",
+#         back_populates="job_id",
+#         cascade="all, delete",
+#     )
+
+# class UserImage(Base):
+#     __tablename__ = "user_image"
+#     id: Mapped[int_pk]
+#     job_id: Mapped[int] =  mapped_column(
+#         Integer,
+#         ForeignKey("job_history.id")
+#     )
+#     job: Mapped["JobHistory"] = relationship(
+#         back_populates="job_reference_id"
+#     )
+#     index: Mapped[int]
+#     image_data: Mapped[txt]
+#     user_id: Mapped[int] =  mapped_column(
+#         Integer,
+#         ForeignKey("user_profile.id")
+#     )
+#     user: Mapped["UserProfile"] = relationship(
+#         "UserProfile",
+#         back_populates="images"
+#     )
+
 int_pk = Annotated[int, mapped_column(Integer, primary_key=True)]
 str_250 = Annotated[str, mapped_column(String(length=250))]
+str_150 = Annotated[str, mapped_column(String(length=150))]
+dt = Annotated[datetime, mapped_column(TIMESTAMP)]
+txt = Annotated[str, mapped_column(Text)]
 #int = Annotated[int, mapped_column(Integer)]
 
 class ModelData(Base):
     __tablename__ = "model"
-    
-    id = Column(String, primary_key=True)
-    name = Column(String)
-    description = Column(String)
-    icon_url = Column(String)
-    available = Column(Boolean)
-    trigger_word = Column(String)
-    tags = Column(String)
-    negative_available = Column(Boolean)
-    model_url = Column(String)
-    resize_available = Column(Boolean)
-    steps_available = Column(Boolean)
-    guidance_available = Column(Boolean)
+    id: Mapped[int_pk]    
+    model_id: Mapped[Annotated[str, mapped_column(String(length=100))]] # Column(String, primary_key=True)
+    name: Mapped[Annotated[str, mapped_column(String(length=200))]] # Column(String)
+    description: Mapped[Annotated[str, mapped_column(Text)]] #Column(String)
+    icon_url: Mapped[Annotated[str, mapped_column(String(length=50))]] #
+    available: Mapped[Annotated[bool, mapped_column(Boolean)]] #Column(Boolean)
+    trigger_word: Mapped[Annotated[str, mapped_column(String(length=50))]] # Column(String)
+    tags: Mapped[Annotated[str, mapped_column(String(length=1024))]] # Column(String)
+    negative_available: Mapped[Annotated[bool, mapped_column(Boolean)]] # = Column(Boolean)
+    model_url: Mapped[Annotated[str, mapped_column(String(length=256))]] # = Column(String)
+    resize_available: Mapped[Annotated[bool, mapped_column(Boolean)]] # Column(Boolean)
+    steps_available: Mapped[Annotated[bool, mapped_column(Boolean)]] # Column(Boolean)
+    guidance_available: Mapped[Annotated[bool, mapped_column(Boolean)]] # Column(Boolean)
+    users: Mapped[list["UserProfile"]] = relationship(
+        "UserProfile",
+        back_populates="model",
+        cascade="all, delete",
+    )    
 
 
 class UserProfile(Base):
@@ -72,14 +168,28 @@ class UserProfile(Base):
     user_name: Mapped[str_250]
     token_count: Mapped[int]
     preferences: Mapped["UserPreferences"] = relationship(
-        back_populates="user"
+        "UserPreferences",
+        back_populates="user",
+        cascade="all, delete",
+    )
+    images: Mapped[list["UserImage"]] = relationship(
+        "UserImage",
+        back_populates="user",
+        cascade="all, delete",
+    )
+    selected_model_id: Mapped[int] = mapped_column(
+        Integer,
+        ForeignKey("model.id"),
+    )
+    model: Mapped["ModelData"] = relationship(
+        "ModelData",
+        back_populates="users"
     )
 
 class UserPreferences(Base):
     __tablename__ = "user_prefs"
 
     id: Mapped[int_pk]
-    selected_model_id: Mapped[str_250]
     user_id: Mapped[int] = mapped_column(
         Integer,
         ForeignKey("user_profile.id"),
@@ -88,6 +198,38 @@ class UserPreferences(Base):
         back_populates="preferences"
     )
 
+class JobHistory(Base):
+    __tablename__ = "job_history"
+    id: Mapped[int_pk]
+    job_reference_id: Mapped[str_150]
+    timestamp: Mapped[dt]
+    images: Mapped[list["UserImage"]] = relationship(
+        "UserImage",
+        back_populates="job",
+        cascade="all, delete",
+    )
+
+class UserImage(Base):
+    __tablename__ = "user_image"
+    id: Mapped[int_pk]
+    job_id: Mapped[int] =  mapped_column(
+        Integer,
+        ForeignKey("job_history.id")
+    )
+    job: Mapped["JobHistory"] = relationship(
+        "JobHistory",
+        back_populates="images"
+    )
+    index: Mapped[int]
+    image_data: Mapped[txt]
+    user_id: Mapped[int] =  mapped_column(
+        Integer,
+        ForeignKey("user_profile.id")
+    )
+    user: Mapped["UserProfile"] = relationship(
+        "UserProfile",
+        back_populates="images"
+    )
 
 frontend_path = Path(__file__).parent / "images"
 
@@ -214,40 +356,40 @@ def ui():
     #STATIC_DIR = "/webAssets"
     STATIC_DIR = "/assets"
 
+    @web_app.put("/me", dependencies=[Depends(JWTBearer())])
+    async def put_profile(request: UserProfilePutRequest):
+
+        with Session(bind=engine) as session:
+            record = session.query(UserProfile).filter(UserProfile.user_name == "google-oauth2|108945084974066666376").first()
+
+            if not record:
+                raise HTTPException(status_code=404, detail="Item not found")
+            
+            record.selected_model_id = request.selected_model_id
+            session.commit()
+
+
     @web_app.get("/me", response_model=UserProfileResponse)
     async def get_profile(payload=Depends(JWTBearer())):
         subject = payload.get("sub")
         if not subject:
             raise HTTPException(status_code=400, detail="Subject not found in token")
         
-        with engine.begin() as conn:
-            row = conn.execute(
-                select(UserProfile.user_name, UserProfile.token_count, UserPreferences.selected_model_id).join(UserPreferences)
-            ).first()
-
-            if row:
-                # row = (user_name, token_count, selected_model)
-                return UserProfileResponse(token_count=row[1], selected_model=row[2])
-
-
-        # no existing profile → INSERT
         with Session(bind=engine) as session:
-            profile = UserProfile(user_name=subject, token_count=100)
-            preferences = UserPreferences(selected_model_id=None, user=profile)
+            record = session.query(UserProfile).filter(UserProfile.user_name == "google-oauth2|108945084974066666376").first()
 
+            selected_model = None
+            if record.model is not None:
+                selected_model = record.model.id
+
+            if record:
+                return UserProfileResponse(user_name=subject, selected_model_id=selected_model, token_count=record.token_count)
+
+            profile = UserProfile(user_name=subject, token_count=100, selected_model_id=None)
             session.add(profile)
-            session.add(preferences)
 
             session.commit()
-        # conn.execute(
-        #     insert(UserProfile).values(
-        #         user_name=subject,
-        #         token_count=100
-        #     )
-        # )
-
-        # engine.begin() auto-commits here
-        return UserProfileResponse(token_count=100, selected_model=None)      
+            return UserProfileResponse(token_count=100, user_name=subject, selected_model_id=None)      
 
 
     @web_app.get("/model", response_model=List[ModelInfo], dependencies=[Depends(JWTBearer())])
@@ -265,6 +407,7 @@ def ui():
         for db_model in database_models:
             model = {
                 "id": db_model.id,
+                "model_id": db_model.model_id,
                 "name": db_model.name,
                 "description": db_model.description,
                 "available": db_model.available,
@@ -319,41 +462,15 @@ def ui():
         except TimeoutError:
             return JSONResponse(content="", status_code=202)
 
-        job_entry = await job_dictionary.pop.aio(job_id)
-        if job_entry == None:
+        has_entry = job_dictionary.contains(job_id)
+
+        if has_entry:
+            job_entry = await job_dictionary.pop.aio(job_id)
+            if job_entry == None:
+                return JSONResponse(content={"message": "Job entry not found."}, status_code=404)
+        else:
             return JSONResponse(content={"message": "Job entry not found."}, status_code=404)
         
-
-        #await job_dictionary.delete.aio(job_id)
-
-        # Convert each bytes object to list of ints so it’s JSON‐serializable
-        #images_as_int_lists = [list(img_bytes) for img_bytes in result]
-        #return JSONResponse(content={"images": images_as_int_lists})
         return JSONResponse({"images": b64_list, "request": job_entry})
     
     return web_app
-
-
-
-#print(select(user_table.c.name, address_table.c.email_address).join(address_table))
-
-@app.function(
-    timeout=2700,  # timeout in seconds (e.g., 900s = 15 minutes)
-    cpu=4,
-    image=web_image,
-    secrets=[modal.Secret.from_dotenv()],  # 👈 attaches HF_TOKEN env var
-    )
-async def test():
-    from typing_extensions import Annotated
-    import modal
-    from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
-    from sqlalchemy.orm import sessionmaker, declarative_base, relationship, Mapped, mapped_column, Session
-    from sqlalchemy import Column, ForeignKey, Integer, String, Boolean, create_engine, select
-    from typing import Optional    
-    from pathlib import Path
-    from typing import List, Optional
-    from pydantic import BaseModel
-    from fastapi import Depends, HTTPException
-    from modal import Dict
-
-    print(select(UserProfile.user_name, UserPreferences.selected_model).join(UserPreferences))

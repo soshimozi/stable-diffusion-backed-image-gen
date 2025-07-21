@@ -1,5 +1,6 @@
 export interface AIModel  {
-  id: string;
+  id: number;
+  model_id: string;
   image_data: string;
   name: string;
   description: string;

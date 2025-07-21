@@ -16,6 +16,7 @@ import { ModelsService } from "../../services/ModelsService";
 import { useSnackbar } from "../SnackbarContext";
 import { ErrorPage } from "./ErrorPage";
 import { useAuth0 } from "@auth0/auth0-react";
+import type { AIModel } from "../../types/AIModel";
 
 type GenerateViewState = {
   prompt: string;
@@ -93,7 +94,7 @@ export const GenerateView : React.FC = () => {
 
       const profileUrl = `${import.meta.env.VITE_BASE_URL}/me`;
 
-      const generateResponse = await fetch(profileUrl, {
+      const profileResponse = await fetch(profileUrl, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -101,7 +102,13 @@ export const GenerateView : React.FC = () => {
         },
       });
 
-      console.log('generateResponse', generateResponse)
+      const profile = await profileResponse.json();
+
+      console.log('profile', profile)
+
+      
+      const selectedModel = models.find((m) => m.id === profile.selected_model_id);
+      dispatch(actions.models.setModel(selectedModel ? selectedModel : models[0]));
 
       setDataLoading(false);
 
@@ -169,7 +176,7 @@ export const GenerateView : React.FC = () => {
             const th:ThumbnailData = {
               url: src,
               prompt: prompt,
-              model: selectedModel?.id ?? "",
+              model: selectedModel?.id || -1,
               settings: {
                 height: parseInt(imageHeight),
                 width: parseInt(imageWidth),
@@ -195,7 +202,10 @@ export const GenerateView : React.FC = () => {
 
 
         } else {
-          throw new Error("Failed to get results");
+          console.log(response.status)
+
+          if(!complete)
+            throw new Error("Failed to get results");
         }
       } catch (error) {
 
@@ -209,7 +219,7 @@ export const GenerateView : React.FC = () => {
         clearInterval(pollInterval);
       }
       
-    }, 1000);
+    }, 2000);
   }
 
 
@@ -220,7 +230,7 @@ export const GenerateView : React.FC = () => {
 
   }
 
-
+  
   const requestImageJob = async () => {
 
     if(!accessToken) {
@@ -232,7 +242,7 @@ export const GenerateView : React.FC = () => {
 
     const triggerWord = selectedModel?.trigger_word ? selectedModel.trigger_word + " " : ""
     const fullPrompt = triggerWord + prompt;
-    const model_id =  selectedModel?.id || "flux"
+    const model_id =  selectedModel?.model_id || ""
 
     // normalize imageWidth and imageHeight
     const width = normalizeToGCF(parseInt(imageWidth), 16);
@@ -263,19 +273,19 @@ export const GenerateView : React.FC = () => {
       setLoading(false);
     }      
 
-    if( jobId ) {
-      startJobPolling(jobId);
+    if(!jobId) return;
 
-      // add jobId to each loading image for later retrieval
-      const imageIds:string[] = []
-      for(var i = 0; i < parseInt(numberImages); i++) {
-        imageIds.push(jobId);
-      }
-
-      setLoadingImages((_) => {
-        return [...imageIds];
-      })
+    // add jobId to each loading image for later retrieval
+    const imageIds:string[] = []
+    for(var i = 0; i < parseInt(numberImages); i++) {
+      imageIds.push(jobId);
     }
+
+    setLoadingImages((_) => {
+      return [...imageIds];
+    })
+
+    startJobPolling(jobId);
   }; 
   
   // const { data: models, isLoading: dataLoading, isError, error: loadingError } = useQuery({
@@ -315,6 +325,7 @@ export const GenerateView : React.FC = () => {
 
               console.log('selectedModelId: ', currentModel);
 
+
               return (
 
                 <ModelView 
@@ -323,7 +334,7 @@ export const GenerateView : React.FC = () => {
                   image={model.image_data} 
                   tags={model.tags} 
                   model_url={model.model_url}
-                  onClick={() => { dispatch(actions.models.setModel(model)); setShowSelectModelView(false); }} 
+                  onClick={() => { setShowSelectModelView(false); updateModel(model)}} 
                   selected={model.id === currentModel?.id} 
                 />
               )
@@ -332,6 +343,41 @@ export const GenerateView : React.FC = () => {
         </Box>
     )
   }
+
+type UpdateModelRequest = {
+  selected_model_id: number
+};
+
+async function updateModel(model: AIModel) {
+
+  dispatch(actions.models.setModel(model)); 
+
+  const request:UpdateModelRequest = {
+    selected_model_id: model.id
+  }
+
+  try {
+
+    await fetch(
+      `${import.meta.env.VITE_BASE_URL}/me`, 
+      {
+        method: "PUT",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'Content-Type': 'application/json',
+        },
+
+        body: JSON.stringify(request)
+      }          
+    );
+  } catch(e) {
+    console.error(e)
+
+    showSnackbar({message: "Could not save profile.", variant: "error", verticalAnchor: "top", horizontalAnchor: "right"})
+  }
+
+}
+
 
   return (
     <>
