@@ -1,4 +1,4 @@
-import { Box, Typography, Tooltip, TextField, styled, MenuItem, Slider, type SliderValueLabelProps, Button, Stack, CircularProgress, FormGroup, FormControlLabel, Checkbox, Switch } from "@mui/material";
+import { Box, Typography, Tooltip, TextField, styled, MenuItem, Slider, type SliderValueLabelProps, Button, Stack, CircularProgress, Switch } from "@mui/material";
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import MuiAccordion, { type AccordionProps } from '@mui/material/Accordion';
 import MuiAccordionDetails from '@mui/material/AccordionDetails';
@@ -20,21 +20,6 @@ import { Fragment } from "react/jsx-runtime";
 import { useState } from "react";
 import ChevronRightIcon from '@mui/icons-material/ChevronRight';
 
-/*
-
-Square (1:1)
-Widescreen (16:9) (width: 100%, height: 10.125px)
-Art Print (5:4) (width: 100%, height: 14.4px)
-Classic (4:3) (width: 100%, height: 13.5px)
-Photo (3:2) (width: 100%, height: 12px)
-Book (2:3) (width: 12px, height: 100%)
-Portrait (3:4) (width: 13.5px, height: 100%)
-Vertical (4:5) (width: 14.4px, height: 100%)
-Mobile (9:16) (width: 10.125px, height: 100%)
-Ultrawide (21:9) (width: 100%, height: 7.71429px)
-Tall (16:21) (width: 13.7143px, height: 100%)
-
-*/
 export type AspectRatioType = "square" | "widescreen" | "art-print" | "classic" | "photo" | "book" | "portrait" | "vertical" | "mobile" | "ultrawide" | "tall" | "";
 
 export interface SideBarProps {
@@ -482,7 +467,7 @@ Tall (16:21) (width: 13.7143px, height: 100%)
               {selectedModel && 
               (
                 <img
-                  src={selectedModel.image_data}
+                  src={`${import.meta.env.VITE_BASE_URL}${selectedModel.image_url}`}
                   style={{
                     width: "100%",
                     height: "100%",

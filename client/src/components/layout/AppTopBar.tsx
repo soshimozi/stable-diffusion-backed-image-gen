@@ -14,6 +14,7 @@ import TokenIcon from '@mui/icons-material/Token';
 import WorkspacesIcon from '@mui/icons-material/Workspaces';
 import { useNavigate } from "react-router-dom";
 import HomeIcon from '@mui/icons-material/Home';
+import { useTypedSelector } from "../../store/hooks";
 
 const Search = styled('div')(({ theme }) => ({
   position: 'relative',
@@ -82,7 +83,7 @@ const menu = [
 interface MenuEntryProps {
   title: string,
   onClick: () => void,
-  icon:  JSX.Element
+  icon:  JSX.Element,
 }
 
 const MenuEntry: React.FC<MenuEntryProps> = ({title, icon, onClick}) => {
@@ -109,6 +110,7 @@ const MenuEntry: React.FC<MenuEntryProps> = ({title, icon, onClick}) => {
       </Box>
   )
 }
+
 const AppTopBar: React.FC = () => {
   const { user, isAuthenticated, isLoading, loginWithRedirect, logout  } = useAuth0();
  
@@ -117,6 +119,9 @@ const AppTopBar: React.FC = () => {
   const [messageCount /*, setMessageCount*/] = React.useState(0);
   const [drawerOpen, setDrawerOpen] = React.useState(false);
   const navigate = useNavigate();
+
+
+  const tokens = useTypedSelector((state) => state.appState.tokenCount);
 
 
   if( isLoading ) return null;
@@ -195,6 +200,15 @@ const AppTopBar: React.FC = () => {
             inputProps={{ 'aria-label': 'search' }}
           />
         </Search>
+
+        {tokens && (
+        <Box sx={{display: 'flex', flexDirection: "row"}}>
+           <TokenIcon /><Typography>{`You have ${tokens} tokens remaining`}</Typography>
+        </Box>
+        )}
+
+        <Box sx={{ flexGrow: 1 }} />       
+
 
         <Box sx={{ flexGrow: 1 }} />       
 

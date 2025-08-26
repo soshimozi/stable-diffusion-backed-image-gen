@@ -11,10 +11,8 @@ import ArrowBackIcon from '@mui/icons-material/ArrowBack';
 import { ModelView } from "../ModelView";
 import { dispatch } from "../../store/store";
 import { actions } from "../../store/actions";
-import { useQuery } from "@tanstack/react-query";
 import { ModelsService } from "../../services/ModelsService";
 import { useSnackbar } from "../SnackbarContext";
-import { ErrorPage } from "./ErrorPage";
 import { useAuth0 } from "@auth0/auth0-react";
 import type { AIModel } from "../../types/AIModel";
 
@@ -82,33 +80,59 @@ export const GenerateView : React.FC = () => {
       } catch (err) {
         console.error("TokenFetcher error:", err);
         setError((err as any).message);
+        setDataLoading(false);
+
+        showSnackbar({message: "Failed to fetch token", variant: "error"});
+        return;
       }
 
       if(!token) return;
 
-      dispatch(actions.appState.setToken(token));
+      dispatch(actions.appState.setAccessToken(token));
       setAccessToken(token);
 
-      var models = await modelsService.getModels(token);
-      dispatch(actions.models.setModels(models));
+      console.log("fetching models");
+
+      try {
+        var models = await modelsService.getModels(token);
+
+        console.log('got models');
+
+        dispatch(actions.models.setModels(models));
+      } catch(e) {
+        setError((e as any).message);
+        showSnackbar({message: "Failed to get models", variant: "error"})
+        setDataLoading(false);
+        return;
+      }
 
       const profileUrl = `${import.meta.env.VITE_BASE_URL}/me`;
 
-      const profileResponse = await fetch(profileUrl, {
-        method: 'GET',
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json',
-        },
-      });
+      console.log('fetching profile');
 
-      const profile = await profileResponse.json();
+      try {
 
-      console.log('profile', profile)
+        const profileResponse = await fetch(profileUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          },
+        });
 
-      
-      const selectedModel = models.find((m) => m.id === profile.selected_model_id);
-      dispatch(actions.models.setModel(selectedModel ? selectedModel : models[0]));
+        const profile = await profileResponse.json();
+
+        const selectedModel = models.find((m) => m.id === profile.selected_model_id);
+        dispatch(actions.models.setModel(selectedModel ? selectedModel : models[0]));
+        dispatch(actions.appState.setTokenCount(profile.token_count))
+        console.log('profile', profile)
+
+      } catch(e) {
+        setError((e as any).message);
+        setDataLoading(false);
+        showSnackbar({message: "failed to load profile"})
+      }
+
 
       setDataLoading(false);
 
@@ -116,9 +140,10 @@ export const GenerateView : React.FC = () => {
 
   });
 
+  const costPerImage = 1
   useEffect(() => {
     
-    setCost(parseInt(numberImages) * 5);
+    setCost(parseInt(numberImages) * costPerImage);
 
   }, [numberImages])
 
@@ -331,7 +356,7 @@ export const GenerateView : React.FC = () => {
                 <ModelView 
                   key={index} 
                   name={model.name} 
-                  image={model.image_data} 
+                  image_url={`${import.meta.env.VITE_BASE_URL}${model.image_url}`} 
                   tags={model.tags} 
                   model_url={model.model_url}
                   onClick={() => { setShowSelectModelView(false); updateModel(model)}} 

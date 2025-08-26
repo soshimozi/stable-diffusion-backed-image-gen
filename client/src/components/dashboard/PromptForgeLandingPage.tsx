@@ -24,9 +24,9 @@ const PromptForgeLandingPage: React.FC = () => {
           <Button variant="contained" color="primary" size="large" onClick={() => navigate("/generate")}>
             Generate an Image
           </Button>
-          <Button variant="outlined" color="primary" size="large" onClick={() => navigate("/models")}>
+          {/* <Button variant="outlined" color="primary" size="large" onClick={() => navigate("/models")}>
             Browse Models
-          </Button>
+          </Button> */}
         </Stack>
       </Box>
 

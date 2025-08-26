@@ -5,7 +5,6 @@ import { Box, CssBaseline } from "@mui/material";
 import AppTopBar from "./AppTopBar";
 
 
-
 const AppLayout: React.FC = () => {
 
   return (

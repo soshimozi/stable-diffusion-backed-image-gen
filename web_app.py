@@ -13,6 +13,8 @@ from modal import Dict
 
 app = modal.App("image-generator-api")
 
+TOKENS_PER_IMAGE = 5
+
 class ModelInfo(BaseModel):
     id: int
     model_id: str
@@ -21,7 +23,7 @@ class ModelInfo(BaseModel):
     available: bool
     tags: List[str]
     trigger_word: str | None
-    image_data: str
+    image_url: str
     negative_available: bool
     model_url: str | None
     resize_available: bool
@@ -50,92 +52,12 @@ class UserProfileResponse(BaseModel):
 
 Base = declarative_base()
 
-# int_pk = Annotated[int, mapped_column(Integer, primary_key=True)]
-# str_250 = Annotated[str, mapped_column(String(length=250))]
-# str_150 = Annotated[str, mapped_column(String(length=150))]
-# dt = Annotated[datetime, mapped_column(DateTime)]
-# txt = Annotated[str, mapped_column(Text)]
-# #int = Annotated[int, mapped_column(Integer)]
-
-# class ModelData(Base):
-#     __tablename__ = "model"
-    
-#     id = Column(String, primary_key=True)
-#     name = Column(String)
-#     description = Column(String)
-#     icon_url = Column(String)
-#     available = Column(Boolean)
-#     trigger_word = Column(String)
-#     tags = Column(String)
-#     negative_available = Column(Boolean)
-#     model_url = Column(String)
-#     resize_available = Column(Boolean)
-#     steps_available = Column(Boolean)
-#     guidance_available = Column(Boolean)
-
-
-# class UserProfile(Base):
-#     __tablename__ = "user_profile"
-
-#     id: Mapped[int_pk] #Column(Integer, primary_key=True)
-#     user_name: Mapped[str_250]
-#     token_count: Mapped[int]
-#     preferences: Mapped["UserPreferences"] = relationship(
-#         back_populates="user"
-#     )
-#     images: Mapped[list["UserImage"]] = relationship(
-#         back_populates="user",
-#     )
-
-# class UserPreferences(Base):
-#     __tablename__ = "user_prefs"
-
-#     id: Mapped[int_pk]
-#     selected_model_id: Mapped[str_250]
-#     user_id: Mapped[int] = mapped_column(
-#         Integer,
-#         ForeignKey("user_profile.id"),
-#     )
-#     user: Mapped["UserProfile"] = relationship(
-#         back_populates="preferences"
-#     )
-
-# class JobHistory(Base):
-#     __tablename__ = "job_history"
-#     id: Mapped[int_pk]
-#     job_reference_id: Mapped[str_150]
-#     timestamp: Mapped[dt]
-#     images: Mapped[list["UserImage"]] = relationship(
-#         "UserImage",
-#         back_populates="job_id",
-#         cascade="all, delete",
-#     )
-
-# class UserImage(Base):
-#     __tablename__ = "user_image"
-#     id: Mapped[int_pk]
-#     job_id: Mapped[int] =  mapped_column(
-#         Integer,
-#         ForeignKey("job_history.id")
-#     )
-#     job: Mapped["JobHistory"] = relationship(
-#         back_populates="job_reference_id"
-#     )
-#     index: Mapped[int]
-#     image_data: Mapped[txt]
-#     user_id: Mapped[int] =  mapped_column(
-#         Integer,
-#         ForeignKey("user_profile.id")
-#     )
-#     user: Mapped["UserProfile"] = relationship(
-#         "UserProfile",
-#         back_populates="images"
-#     )
-
 int_pk = Annotated[int, mapped_column(Integer, primary_key=True)]
+str_256 = Annotated[str, mapped_column(String(length=256))]
 str_250 = Annotated[str, mapped_column(String(length=250))]
 str_150 = Annotated[str, mapped_column(String(length=150))]
 dt = Annotated[datetime, mapped_column(TIMESTAMP)]
+tz = Annotated[datetime, mapped_column(TIMESTAMP)]
 txt = Annotated[str, mapped_column(Text)]
 #int = Annotated[int, mapped_column(Integer)]
 
@@ -156,6 +78,11 @@ class ModelData(Base):
     guidance_available: Mapped[Annotated[bool, mapped_column(Boolean)]] # Column(Boolean)
     users: Mapped[list["UserProfile"]] = relationship(
         "UserProfile",
+        back_populates="model",
+        cascade="all, delete",
+    )    
+    jobs: Mapped[list["Job"]] = relationship(
+        "Job",
         back_populates="model",
         cascade="all, delete",
     )    
@@ -198,26 +125,41 @@ class UserPreferences(Base):
         back_populates="preferences"
     )
 
-class JobHistory(Base):
-    __tablename__ = "job_history"
+class Job(Base):
+    __tablename__ = "job"
     id: Mapped[int_pk]
     job_reference_id: Mapped[str_150]
-    timestamp: Mapped[dt]
+    start_time: Mapped[tz]
+    end_time: Mapped[tz]
+    image_width: Mapped[int]
+    image_height: Mapped[int]
+    prompt: Mapped[str_256]
+    seed: Mapped[int]
+    cfg: Mapped[int]
+    steps: Mapped[int]
     images: Mapped[list["UserImage"]] = relationship(
         "UserImage",
         back_populates="job",
         cascade="all, delete",
     )
+    model_id: Mapped[int] =  mapped_column(
+        Integer,
+        ForeignKey("model.id")
+    )
+    model: Mapped["ModelData"] = relationship(
+        "ModelData",
+        back_populates="jobs"
+    )    
 
 class UserImage(Base):
     __tablename__ = "user_image"
     id: Mapped[int_pk]
     job_id: Mapped[int] =  mapped_column(
         Integer,
-        ForeignKey("job_history.id")
+        ForeignKey("job.id")
     )
-    job: Mapped["JobHistory"] = relationship(
-        "JobHistory",
+    job: Mapped["Job"] = relationship(
+        "Job",
         back_populates="images"
     )
     index: Mapped[int]
@@ -230,6 +172,8 @@ class UserImage(Base):
         "UserProfile",
         back_populates="images"
     )
+
+
 
 frontend_path = Path(__file__).parent / "images"
 
@@ -251,6 +195,7 @@ web_image = (
 with web_image.imports():
     from fastapi import Request, Depends, HTTPException
     from fastapi.responses import Response
+    from fastapi.staticfiles import StaticFiles
     from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
     from typing import List
     from jose import jwt, JWTError
@@ -304,6 +249,12 @@ def ui():
 
     web_app = FastAPI()
 
+    web_app.mount(
+        "/assets",
+        StaticFiles(directory="/assets", html=False),
+        name="assets",
+    )
+
     web_app.add_middleware(
         CORSMiddleware,
         allow_origins=["*"], #ORIGINS.split(",") if ORIGINS else [],
@@ -353,14 +304,14 @@ def ui():
             return payload
         raise JWTError("Invalid JWT")
 
-    #STATIC_DIR = "/webAssets"
     STATIC_DIR = "/assets"
 
-    @web_app.put("/me", dependencies=[Depends(JWTBearer())])
-    async def put_profile(request: UserProfilePutRequest):
+    @web_app.put("/me")
+    async def put_profile(request: UserProfilePutRequest, payload=Depends(JWTBearer())):
+        subject = payload.get("sub")
 
         with Session(bind=engine) as session:
-            record = session.query(UserProfile).filter(UserProfile.user_name == "google-oauth2|108945084974066666376").first()
+            record = session.query(UserProfile).filter(UserProfile.user_name == subject).first()
 
             if not record:
                 raise HTTPException(status_code=404, detail="Item not found")
@@ -376,13 +327,14 @@ def ui():
             raise HTTPException(status_code=400, detail="Subject not found in token")
         
         with Session(bind=engine) as session:
-            record = session.query(UserProfile).filter(UserProfile.user_name == "google-oauth2|108945084974066666376").first()
+            record = session.query(UserProfile).filter(UserProfile.user_name == subject).first()
 
             selected_model = None
             if record.model is not None:
                 selected_model = record.model.id
 
             if record:
+                print("found record")
                 return UserProfileResponse(user_name=subject, selected_model_id=selected_model, token_count=record.token_count)
 
             profile = UserProfile(user_name=subject, token_count=100, selected_model_id=None)
@@ -392,7 +344,7 @@ def ui():
             return UserProfileResponse(token_count=100, user_name=subject, selected_model_id=None)      
 
 
-    @web_app.get("/model", response_model=List[ModelInfo], dependencies=[Depends(JWTBearer())])
+    @web_app.get("/model", response_model=List[ModelInfo])
     async def list_models():
         engine = create_engine(os.getenv('DATABASE_URL'), echo=True)
 
@@ -402,9 +354,11 @@ def ui():
             result = conn.execute(select(ModelData))
             database_models = result.fetchall()
 
+
         model_list = []
 
         for db_model in database_models:
+
             model = {
                 "id": db_model.id,
                 "model_id": db_model.model_id,
@@ -421,27 +375,39 @@ def ui():
                 "guidance_available": db_model.guidance_available
             }
 
+            print("loading image data")
             image_path = os.path.join(STATIC_DIR, db_model.icon_url.lstrip("/"))
-            try:
-                with open(image_path, "rb") as f:
-                    encoded = base64.b64encode(f.read()).decode("utf-8")
-                    model["image_data"] = f"data:image/png;base64,{encoded}"
-            except FileNotFoundError:
-                model["image_data"] = ""  # fallback or leave empty
+            model["image_url"] = image_path
+            # try:
+            #     with open(image_path, "rb") as f:
+            #         encoded = base64.b64encode(f.read()).decode("utf-8")
+            #         #model["image_data"] = f"data:image/png;base64,{encoded}"
+            # except FileNotFoundError:
+            #     model["image_data"] = ""  # fallback or leave empty
 
 
             model_list.append(model)
 
+        #print(model_list)
+
+        print(f"Return {len(model_list)} models")
         return model_list
     
     
-    @web_app.post("/job", dependencies=[Depends(JWTBearer)])
-    async def start_image_job(request: ImageRequest):
-        
+    @web_app.post("/job")
+    async def start_image_job(request: ImageRequest, payload=Depends(JWTBearer())):
+        subject = payload.get("sub")
+
         model_id = request.model_id
         if request.model_id not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model: {model_id}")
         
+        with Session(bind=engine) as session:
+            record = session.query(UserProfile).filter(UserProfile.user_name == subject).first()
+
+            if record is None:
+                raise PermissionError(f"User not registered.")
+            
         job_id = None
 
         Model = modal.Cls.from_name("image-generator", MODEL_REGISTRY[model_id])
@@ -449,12 +415,44 @@ def ui():
         data = request.model_dump()
         job_id = Model().generate.spawn(data).object_id
         await job_dictionary.put.aio(job_id, data)
+    
+        with Session(bind=engine) as session:
+            model = session.query(ModelData).filter(ModelData.model_id == request.model_id).first()
+
+            if model is None:
+                raise ValueError(f"Invalid model id: {request.model_id}")
+            
+            model_id = model.id
+
+            print("model_id: ", model_id)
+            print("job_id: ", job_id)
+
+            job_id_str = job_id
+
+            new_job = Job(job_reference_id = job_id_str, 
+                          start_time = datetime.now(), 
+                          image_width = request.width,
+                          image_height = request.height,
+                          prompt = request.prompt,
+                          seed = request.seed,
+                          cfg = request.guidance,
+                          steps = request.iterations,
+                          model_id = model_id
+                          ) 
+            
+            session.add(new_job)
+
+            #save the job   
+            session.commit()
+
 
         return JSONResponse(content={"job_id": job_id})
 
 
-    @web_app.get("/job/{job_id}", dependencies=[Depends(JWTBearer())])
-    async def poll_results(job_id: str):
+    @web_app.get("/job/{job_id}")
+    async def poll_results(job_id: str, payload=Depends(JWTBearer())):
+        subject = payload.get("sub")
+
         image_job = modal.FunctionCall.from_id(job_id)
 
         try:
@@ -470,7 +468,29 @@ def ui():
                 return JSONResponse(content={"message": "Job entry not found."}, status_code=404)
         else:
             return JSONResponse(content={"message": "Job entry not found."}, status_code=404)
-        
+
+        with Session(bind=engine) as session:
+            job = session.query(Job).filter(Job.job_reference_id == job_id).first()
+            user = session.query(UserProfile).filter(UserProfile.user_name == subject).first()
+
+            if job is None:
+                raise ValueError("Invalid job id: " + job_id)
+            
+            if user is None:
+                raise PermissionError(f"Incorrect user.")
+
+            tokens = 0
+            job.end_time = datetime.now()
+
+            for index in range(0, len(b64_list)):
+                tokens = tokens + 1
+
+                image = UserImage(job = job, index = index, image_data = b64_list[index], user_id=user.id)
+                session.add(image)
+
+            user.token_count = user.token_count - tokens
+            session.commit()
+
         return JSONResponse({"images": b64_list, "request": job_entry})
     
     return web_app

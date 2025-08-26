@@ -29,7 +29,7 @@ export function AuthWrapper({ children }: { children: ReactNode }) {
             },
         });
 
-        dispatch(actions.appState.setToken(token));
+        dispatch(actions.appState.setAccessToken(token));
 
       } catch (err) {
 

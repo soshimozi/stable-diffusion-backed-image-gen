@@ -3,16 +3,17 @@ import type { PayloadAction } from '@reduxjs/toolkit';
 
 
 interface AppState {
-  token: string,
+  accessToken: string,
   currentPrompt: string | null,
-  promptHistory: string[]
+  promptHistory: string[],
+  tokenCount?: number
 }
 
 
 const initialState: AppState = {
-  token: "",
+  accessToken: "",
   currentPrompt: null,
-  promptHistory: []
+  promptHistory: [],
 };
 
 
@@ -20,8 +21,11 @@ export const slice = createSlice({
   name: 'model',
   initialState,
   reducers: {
-    setToken: (state, { payload }: PayloadAction<string>) => {
-      state.token = payload;
+    setTokenCount: (state, { payload }: PayloadAction<number | undefined>) => {
+      state.tokenCount = payload;
+    },
+    setAccessToken: (state, { payload }: PayloadAction<string>) => {
+      state.accessToken = payload;
     },
     setCurrentPrompt: (state, { payload }: PayloadAction<string | null>) => {
       state.currentPrompt = payload;
@@ -32,7 +36,7 @@ export const slice = createSlice({
   }
 });
 
-export const { setCurrentPrompt, setPromptHistory } = slice.actions;
+export const { setCurrentPrompt, setPromptHistory, setAccessToken, setTokenCount } = slice.actions;
 
 
 export const actions = {

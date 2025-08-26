@@ -28,7 +28,7 @@ const TagDisplay = styled(Box)(() => ({
 
 interface ModelViewProps {
   onClick: () => void;
-  image: string;
+  image_url: string;
   name: string;
   tags: string[];
   selected: boolean;
@@ -53,7 +53,7 @@ const ModelLink = styled('a')(() => ({
   }  
 }));
 
-export const ModelView : React.FC<ModelViewProps> = ({onClick, image, name, tags, selected, model_url}) => {
+export const ModelView : React.FC<ModelViewProps> = ({onClick, image_url, name, tags, selected, model_url}) => {
 
   const [hover, setHover] = useState(false)
   
@@ -75,7 +75,7 @@ export const ModelView : React.FC<ModelViewProps> = ({onClick, image, name, tags
             width: "300px"
         }}>
           
-          <ModelImage src={image} onClick={onClick} />
+          <ModelImage src={image_url} onClick={onClick} />
           <Box sx={{
             width: "100%",
             height: "100px",

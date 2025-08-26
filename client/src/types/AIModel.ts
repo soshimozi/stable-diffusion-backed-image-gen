@@ -1,7 +1,7 @@
 export interface AIModel  {
   id: number;
   model_id: string;
-  image_data: string;
+  image_url: string;
   name: string;
   description: string;
   trigger_word: string;
