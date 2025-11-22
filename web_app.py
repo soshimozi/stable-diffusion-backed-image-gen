@@ -347,6 +347,7 @@ def ui():
     @web_app.get("/model", response_model=List[ModelInfo])
     async def list_models():
         engine = create_engine(os.getenv('DATABASE_URL'), echo=True)
+        print("List models called!")
 
         database_models = []
 
@@ -398,6 +399,8 @@ def ui():
     async def start_image_job(request: ImageRequest, payload=Depends(JWTBearer())):
         subject = payload.get("sub")
 
+        print(MODEL_REGISTRY)
+        
         model_id = request.model_id
         if request.model_id not in MODEL_REGISTRY:
             raise ValueError(f"Unknown model: {model_id}")
